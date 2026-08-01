@@ -2298,20 +2298,6 @@
         </section>
     </main>
 
-    <!-- YouTube / Google Video Copy-Link Modal -->
-    <div class="yt-modal-overlay" id="ytModal">
-        <div class="yt-modal-box">
-            <button class="yt-modal-close" id="ytModalClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
-            <div class="yt-modal-icon"><i class="fa-brands fa-youtube"></i></div>
-            <h3>YouTube Direct Download</h3>
-            <p>YouTube protects its CDN links with IP-locked tokens, so the browser can't download them directly.<br>Copy the link below and paste it into <strong>IDM</strong>, <strong>JDownloader</strong>, or any download manager.</p>
-            <div class="yt-link-row">
-                <input type="text" class="yt-link-input" id="ytLinkInput" readonly>
-                <button class="yt-copy-btn" id="ytCopyBtn"><i class="fa-solid fa-copy"></i> Copy Link</button>
-            </div>
-            <p class="yt-note">⚡ Tip: In <strong>IDM</strong>, press <kbd>Ctrl+N</kbd> and paste the link, or simply paste the link into the browser address bar then right-click the video → <em>Save as</em>.</p>
-        </div>
-    </div>
 
     <!-- Footer -->
     <footer class="site-footer">
@@ -2490,20 +2476,6 @@
                     this.dom.backToTop.classList.toggle('show', window.scrollY > 500);
                 });
                 this.dom.backToTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-
-                // YouTube copy-link modal
-                const ytModal = document.getElementById('ytModal');
-                document.getElementById('ytModalClose').addEventListener('click', () => ytModal.classList.remove('active'));
-                ytModal.addEventListener('click', (e) => { if (e.target === ytModal) ytModal.classList.remove('active'); });
-                document.getElementById('ytCopyBtn').addEventListener('click', async () => {
-                    const link = document.getElementById('ytLinkInput').value;
-                    try {
-                        await navigator.clipboard.writeText(link);
-                        const btn = document.getElementById('ytCopyBtn');
-                        btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
-                        setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Link'; }, 2000);
-                    } catch { this.showToast('Copy failed — please copy manually.', 'error'); }
-                });
 
             }
 
@@ -2696,10 +2668,9 @@
                         return;
                     } catch (cobaltErr) {
                         console.warn('Cobalt failed:', cobaltErr.message);
-                        // Fallback: show copy-link modal so user can use IDM
-                        document.getElementById('ytLinkInput').value = url;
-                        document.getElementById('ytModal').classList.add('active');
-                        this.showToast('⚠️ Auto-download failed. Copy link → paste into IDM.', 'error');
+                        // Fallback: open in new tab so the user can watch/save manually
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                        this.showToast('⚠️ Opening in new tab — right-click video → Save As.', 'error');
                         return;
                     }
                 }
