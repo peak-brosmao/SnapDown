@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Block nothing — all pages are public
+Disallow:
+
+# Sitemap location
+Sitemap: https://www.snapdown.online/sitemap.xml
+
+# Crawl delay (optional, be nice to bots)
+Crawl-delay: 1

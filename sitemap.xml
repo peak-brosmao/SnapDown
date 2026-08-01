@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- Home -->
+  <url>
+    <loc>https://www.snapdown.online/</loc>
+    <lastmod>2026-08-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://www.snapdown.online/og-image.png</image:loc>
+      <image:title>SnapDown — Free Video &amp; Audio Downloader</image:title>
+    </image:image>
+  </url>
+
+  <!-- About -->
+  <url>
+    <loc>https://www.snapdown.online/about</loc>
+    <lastmod>2026-08-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Privacy Policy -->
+  <url>
+    <loc>https://www.snapdown.online/privacy</loc>
+    <lastmod>2026-08-01</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <!-- Terms of Service -->
+  <url>
+    <loc>https://www.snapdown.online/terms</loc>
+    <lastmod>2026-08-01</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+</urlset>
