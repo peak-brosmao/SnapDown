@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us — SnapDown | Free Video & Audio Downloader</title>
+    <meta name="description"
+        content="Learn about SnapDown, the fast, free, and private media downloader for YouTube, Facebook, Instagram, TikTok, and X.">
+    <meta name="theme-color" content="#0a0c11">
+    <link rel="icon" type="image/png" href="icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        :root {
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --bg-body: #0a0c11;
+            --bg-panel: #12151c;
+            --bg-panel-2: #171b24;
+            --text-main: #f4f6f9;
+            --text-muted: #8992a3;
+            --border-color: #242a35;
+            --border-color-2: #2e3541;
+            --primary: #4d7cfe;
+            --primary-hover: #3563e0;
+            --primary-2: #8b5cf6;
+            --secondary: #22c55e;
+            --gradient-brand: linear-gradient(135deg, #4d7cfe 0%, #8b5cf6 100%);
+            --gradient-text: linear-gradient(135deg, #7aa2ff 0%, #b794f6 60%, #f0abfc 100%);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 22px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        a:hover {
+            color: #7aa2ff;
+        }
+
+        .container {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(10, 12, 17, 0.8);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 20px;
+            color: var(--text-main);
+        }
+
+        .brand:hover {
+            text-decoration: none;
+        }
+
+        .brand-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .brand-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: inherit;
+        }
+
+        main {
+            padding: 50px 0 80px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 36px;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-muted);
+            background: var(--bg-panel);
+            padding: 8px 16px;
+            border-radius: 99px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .back-link:hover {
+            color: var(--text-main);
+            border-color: var(--primary);
+            text-decoration: none;
+            transform: translateX(-3px);
+        }
+
+        .hero-section {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 99px;
+            background: rgba(77, 124, 254, 0.12);
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(77, 124, 254, 0.25);
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 16px;
+            background: var(--gradient-text);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-desc {
+            font-size: 18px;
+            color: var(--text-muted);
+            max-width: 680px;
+            margin: 0 auto;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin: 40px 0;
+        }
+
+        .card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 28px;
+            transition: transform 0.25s ease, border-color 0.25s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-color-2);
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: rgba(77, 124, 254, 0.1);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-bottom: 18px;
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .card-text {
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        h2 {
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 700;
+            margin: 44px 0 16px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h2 i {
+            color: var(--primary);
+            font-size: 20px;
+        }
+
+        p,
+        li {
+            color: var(--text-muted);
+            font-size: 15px;
+            margin-bottom: 14px;
+        }
+
+        ul {
+            padding-left: 22px;
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .steps-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin: 24px 0;
+        }
+
+        .step-box {
+            background: var(--bg-panel-2);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 22px;
+            position: relative;
+        }
+
+        .step-num {
+            font-family: var(--font-display);
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary);
+            background: rgba(77, 124, 254, 0.15);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        .step-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+
+        .step-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .platforms-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0 30px;
+        }
+
+        .platform-pill {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 99px;
+            padding: 8px 18px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+        }
+
+        .contact-card {
+            background: linear-gradient(135deg, rgba(77, 124, 254, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+            border: 1px solid rgba(77, 124, 254, 0.2);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        .contact-card h3 {
+            font-family: var(--font-display);
+            font-size: 22px;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .contact-card p {
+            max-width: 540px;
+            margin: 0 auto 20px;
+        }
+
+        .cta-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--gradient-brand);
+            color: #fff;
+            font-weight: 600;
+            font-size: 15px;
+            padding: 12px 28px;
+            border-radius: 99px;
+            box-shadow: 0 4px 14px rgba(77, 124, 254, 0.4);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(77, 124, 254, 0.5);
+            color: #fff;
+            text-decoration: none;
+        }
+
+        footer {
+            border-top: 1px solid var(--border-color);
+            padding: 30px 0;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        footer a {
+            color: var(--text-muted);
+            margin: 0 10px;
+        }
+
+        footer a:hover {
+            color: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <a href="index.html" class="brand">
+                <div class="brand-icon"><img src="icon.png" alt="SnapDown Logo"></div>
+                SnapDown
+            </a>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <a href="index.html" class="back-link"><i class="fa-solid fa-arrow-left"></i> Back to home</a>
+
+            <div class="hero-section">
+                <span class="badge"><i class="fa-solid fa-bolt"></i> Free & Privacy-First Media Utility</span>
+                <h1>About SnapDown</h1>
+                <p class="hero-desc">
+                    SnapDown is a modern web utility designed to simplify downloading public video and audio content from
+                    major platforms seamlessly, quickly, and securely.
+                </p>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-rocket"></i></div>
+                    <div class="card-title">Lightning Fast</div>
+                    <div class="card-text">
+                        Fetch and download media links in seconds without waiting in queues or dealing with tedious
+                        popups.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                    <div class="card-title">Zero Account Needed</div>
+                    <div class="card-text">
+                        We prioritize your privacy. No registration, no passwords, and no personal data tracking
+                        required.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-sliders"></i></div>
+                    <div class="card-title">Multiple Resolutions</div>
+                    <div class="card-text">
+                        Choose your preferred resolution from crisp 1080p Full HD down to compact 360p or standalone MP3
+                        audio formats.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                    <div class="card-title">Cross-Platform Support</div>
+                    <div class="card-text">
+                        Works smoothly across all modern web browsers on desktop PCs, MacBooks, iPhones, iPads, and
+                        Android smartphones.
+                    </div>
+                </div>
+            </div>
+
+            <h2><i class="fa-solid fa-bullseye"></i> Our Mission</h2>
+            <p>
+                Our mission at SnapDown is to make content accessible for offline viewing and personal archival purposes.
+                Millions of creators and users upload valuable educational, entertaining, and creative content online
+                every day. We believe users should have a straightforward, friction-free tool to save public media for
+                offline study, travel, or archiving without hassle.
+            </p>
+
+            <h2><i class="fa-solid fa-layer-group"></i> Supported Platforms</h2>
+            <p>SnapDown provides unified conversion and fetching capabilities for content from popular platforms
+                including:</p>
+
+            <div class="platforms-list">
+                <div class="platform-pill" style="border-color: rgba(255,0,0,0.3);"><i class="fa-brands fa-youtube"
+                        style="color:#ff0000;"></i> YouTube</div>
+                <div class="platform-pill" style="border-color: rgba(24,119,242,0.3);"><i class="fa-brands fa-facebook"
+                        style="color:#1877f2;"></i> Facebook</div>
+                <div class="platform-pill" style="border-color: rgba(225,48,108,0.3);"><i class="fa-brands fa-instagram"
+                        style="color:#e1306c;"></i> Instagram</div>
+                <div class="platform-pill"><i class="fa-brands fa-tiktok"></i> TikTok</div>
+                <div class="platform-pill"><i class="fa-brands fa-x-twitter"></i> X (Twitter)</div>
+                <div class="platform-pill" style="border-color: rgba(38,165,228,0.3);"><i class="fa-brands fa-telegram"
+                        style="color:#26a5e4;"></i> Telegram</div>
+            </div>
+
+            <h2><i class="fa-solid fa-diagram-project"></i> How It Works</h2>
+            <div class="steps-container">
+                <div class="step-box">
+                    <div class="step-num">1</div>
+                    <div class="step-title">Paste Video URL</div>
+                    <div class="step-desc">Copy the link of any public video or audio post and paste it into our search
+                        bar.</div>
+                </div>
+                <div class="step-box">
+                    <div class="step-num">2</div>
+                    <div class="step-title">Select Quality</div>
+                    <div class="step-desc">We fetch available streams so you can choose video resolution or audio MP3
+                        format.</div>
+                </div>
+                <div class="step-box">
+                    <div class="step-num">3</div>
+                    <div class="step-title">Download Instantly</div>
+                    <div class="step-desc">Click download to save your file directly to your device storage with top
+                        speed.</div>
+                </div>
+            </div>
+
+            <h2><i class="fa-solid fa-lock"></i> Privacy & Responsibility</h2>
+            <p>
+                SnapDown operates strictly as a link retrieval tool. We do not host, store, or re-upload media files onto
+                our servers. All stream links are parsed on demand. We respect content owners' rights and encourage all
+                users to download content only in compliance with local copyright regulations and platform fair-use
+                guidelines.
+            </p>
+            <p>
+                For more information regarding how we handle technical data, check out our <a
+                    href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms of Service</a>.
+            </p>
+
+            <div class="contact-card">
+                <h3>Have Questions or Feedback?</h3>
+                <p>We're continuously improving SnapDown. If you experience issues or have suggestions, feel free to get
+                    in touch with our team.</p>
+                <a href="mailto:contact@peakbrosmao.com" class="cta-btn">
+                    <i class="fa-solid fa-envelope"></i> Contact Us
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p style="margin-bottom: 12px;">&copy; 2026 <strong>SnapDown</strong>. All rights reserved.</p>
+            <p>
+                <a href="index.html">Home</a> &bull;
+                <a href="about.html">About</a> &bull;
+                <a href="privacy.html">Privacy Policy</a> &bull;
+                <a href="terms.html">Terms of Service</a>
+            </p>
+        </div>
+    </footer>
+</body>
+
+</html>
