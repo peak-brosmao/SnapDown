@@ -2521,39 +2521,82 @@
                 const cleanTitle = (rawTitle || 'download').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                this.showToast('Starting download...', 'success');
+                this.showToast('Downloading file to your device...', 'success');
 
+                // 1. Direct Blob fetch
                 try {
                     const res = await fetch(url, { mode: 'cors' });
-                    if (!res.ok) throw new Error('Fetch status ' + res.status);
-                    const blob = await res.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-
-                    const a = document.createElement('a');
-                    a.href = blobUrl;
-                    a.download = fileName;
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
-
-                    setTimeout(() => {
-                        URL.revokeObjectURL(blobUrl);
-                        a.remove();
-                    }, 1000);
-
-                    this.showToast('Download completed', 'success');
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = fileName;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => {
+                            URL.revokeObjectURL(blobUrl);
+                            a.remove();
+                        }, 1000);
+                        this.showToast('File saved to device downloads!', 'success');
+                        return;
+                    }
                 } catch (e) {
-                    console.warn('Blob fetch failed, falling back to direct anchor download trigger:', e);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    a.target = '_blank';
-                    a.rel = 'noopener noreferrer';
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => a.remove(), 1000);
+                    console.warn('Direct blob fetch failed (CORS), trying proxy fetch...', e);
                 }
+
+                // 2. CORS Proxy Blob fetch
+                const proxies = [
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+                ];
+
+                for (const proxyUrl of proxies) {
+                    try {
+                        const res = await fetch(proxyUrl);
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = blobUrl;
+                            a.download = fileName;
+                            a.style.display = 'none';
+                            document.body.appendChild(a);
+                            a.click();
+                            setTimeout(() => {
+                                URL.revokeObjectURL(blobUrl);
+                                a.remove();
+                            }, 1000);
+                            this.showToast('File saved to device downloads!', 'success');
+                            return;
+                        }
+                    } catch (err) {
+                        console.warn('Proxy fetch failed:', proxyUrl, err);
+                    }
+                }
+
+                // 3. Fallback: Hidden anchor download on current page (NO target="_blank" -> NEVER opens a new tab)
+                console.warn('Fallback to same-page download trigger');
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => a.remove(), 1000);
+
+                // Hidden iframe trigger fallback for cross-origin downloads
+                let iframe = document.getElementById('dl-hidden-iframe');
+                if (!iframe) {
+                    iframe = document.createElement('iframe');
+                    iframe.id = 'dl-hidden-iframe';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                }
+                iframe.src = url;
+
+                this.showToast('Download started (check your device downloads folder)', 'success');
             }
 
             switchTab(type) {
