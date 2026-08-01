@@ -940,6 +940,29 @@
             cursor: pointer;
         }
 
+        /* ── Fullscreen: video fills the whole screen ── */
+        .custom-player-wrap:fullscreen,
+        .custom-player-wrap:-webkit-full-screen {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .custom-player-wrap:fullscreen video,
+        .custom-player-wrap:-webkit-full-screen video {
+            width: 100% !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            object-fit: contain;
+        }
+        .custom-player-wrap:fullscreen .cp-controls,
+        .custom-player-wrap:-webkit-full-screen .cp-controls {
+            padding: 60px 24px 20px;
+        }
+
         /* Controls overlay (sits on TOP of video, bottom-aligned) */
         .cp-controls {
             position: absolute;
