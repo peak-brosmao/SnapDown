@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.10"
+    "youtubei.js": "^13.0.0"
   }
 }
