@@ -22,6 +22,97 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <style>
+        /* ===== YouTube Modal ===== */
+        .yt-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .yt-modal-overlay.active { display: flex; animation: fadeIn .25s ease; }
+        .yt-modal-box {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color-2);
+            border-radius: var(--radius-lg);
+            padding: 36px 32px 28px;
+            max-width: 520px;
+            width: 100%;
+            position: relative;
+            box-shadow: var(--shadow-lg);
+            animation: slideUp .3s cubic-bezier(.34,1.56,.64,1);
+        }
+        .yt-modal-close {
+            position: absolute;
+            top: 14px; right: 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            transition: color var(--trans-fast);
+        }
+        .yt-modal-close:hover { color: var(--text-main); }
+        .yt-modal-icon {
+            width: 56px; height: 56px;
+            background: rgba(255,0,0,0.12);
+            border-radius: var(--radius-md);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px; color: #ff4444;
+            margin-bottom: 16px;
+        }
+        .yt-modal-box h3 { font-size: 1.25rem; margin-bottom: 10px; color: var(--text-main); }
+        .yt-modal-box > p { font-size: .92rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px; }
+        .yt-link-row { display: flex; gap: 10px; margin-bottom: 16px; }
+        .yt-link-input {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            color: var(--text-main);
+            font-size: .82rem;
+            padding: 10px 12px;
+            font-family: var(--font-mono);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .yt-copy-btn {
+            background: var(--gradient-brand);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 10px 18px;
+            font-size: .88rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: opacity var(--trans-fast);
+        }
+        .yt-copy-btn:hover { opacity: .85; }
+        .yt-note {
+            font-size: .82rem;
+            color: var(--text-dim);
+            line-height: 1.55;
+            border-top: 1px solid var(--border-color);
+            padding-top: 14px;
+            margin-top: 4px;
+        }
+        .yt-note kbd {
+            background: var(--bg-input);
+            border: 1px solid var(--border-color-2);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: .8rem;
+            font-family: var(--font-mono);
+        }
+
         /* ==========================================================================
    1. CSS VARIABLES & THEME SYSTEM
    ========================================================================== */
@@ -2207,6 +2298,21 @@
         </section>
     </main>
 
+    <!-- YouTube / Google Video Copy-Link Modal -->
+    <div class="yt-modal-overlay" id="ytModal">
+        <div class="yt-modal-box">
+            <button class="yt-modal-close" id="ytModalClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+            <div class="yt-modal-icon"><i class="fa-brands fa-youtube"></i></div>
+            <h3>YouTube Direct Download</h3>
+            <p>YouTube protects its CDN links with IP-locked tokens, so the browser can't download them directly.<br>Copy the link below and paste it into <strong>IDM</strong>, <strong>JDownloader</strong>, or any download manager.</p>
+            <div class="yt-link-row">
+                <input type="text" class="yt-link-input" id="ytLinkInput" readonly>
+                <button class="yt-copy-btn" id="ytCopyBtn"><i class="fa-solid fa-copy"></i> Copy Link</button>
+            </div>
+            <p class="yt-note">⚡ Tip: In <strong>IDM</strong>, press <kbd>Ctrl+N</kbd> and paste the link, or simply paste the link into the browser address bar then right-click the video → <em>Save as</em>.</p>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="site-footer">
         <div class="container footer-grid">
@@ -2384,6 +2490,21 @@
                     this.dom.backToTop.classList.toggle('show', window.scrollY > 500);
                 });
                 this.dom.backToTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+                // YouTube copy-link modal
+                const ytModal = document.getElementById('ytModal');
+                document.getElementById('ytModalClose').addEventListener('click', () => ytModal.classList.remove('active'));
+                ytModal.addEventListener('click', (e) => { if (e.target === ytModal) ytModal.classList.remove('active'); });
+                document.getElementById('ytCopyBtn').addEventListener('click', async () => {
+                    const link = document.getElementById('ytLinkInput').value;
+                    try {
+                        await navigator.clipboard.writeText(link);
+                        const btn = document.getElementById('ytCopyBtn');
+                        btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+                        setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Link'; }, 2000);
+                    } catch { this.showToast('Copy failed — please copy manually.', 'error'); }
+                });
+
             }
 
             initScrollSpy() {
@@ -2521,7 +2642,16 @@
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                // Helper: fetch a URL as blob and trigger download
+                // YouTube/Google Video CDN URLs are IP-locked — proxies always get 403.
+                // Show a dedicated modal with the link so the user can paste into IDM / JDownloader.
+                const isYouTubeCDN = url.includes('googlevideo.com') || url.includes('youtube.com/videoplayback');
+                if (isYouTubeCDN) {
+                    document.getElementById('ytLinkInput').value = url;
+                    document.getElementById('ytModal').classList.add('active');
+                    return;
+                }
+
+                // Helper: fetch a URL as blob and trigger a named file download
                 const blobDownload = async (fetchUrl) => {
                     const res = await fetch(fetchUrl);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2538,7 +2668,7 @@
 
                 this.showToast('⏳ Preparing download…', 'success');
 
-                // Step 1: Try direct blob fetch
+                // Step 1: Try direct blob fetch (works when server allows CORS)
                 try {
                     await blobDownload(url);
                     this.showToast('✅ Download started!', 'success');
@@ -2547,7 +2677,7 @@
                     console.warn('Direct blob failed:', e1.message);
                 }
 
-                // Step 2: Try via CORS proxy (handles most CDN/CORS-blocked URLs)
+                // Step 2: Try via CORS proxy (for CDNs that block cross-origin but not proxies)
                 try {
                     const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
                     await blobDownload(proxyUrl);
@@ -2557,7 +2687,7 @@
                     console.warn('Proxy blob failed:', e2.message);
                 }
 
-                // Step 3: Last resort — open direct link in new tab
+                // Step 3: Last resort — open in new tab
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = fileName;
@@ -2567,7 +2697,7 @@
                 document.body.appendChild(a);
                 a.click();
                 setTimeout(() => a.remove(), 1000);
-                this.showToast('⚠️ File opened in new tab — right-click → "Save As" to save it.', 'error');
+                this.showToast('⚠️ Opened in new tab — right-click → "Save As" to save.', 'error');
             }
 
             switchTab(type) {
