@@ -899,6 +899,46 @@
             font-family: var(--font-mono);
         }
 
+        /* ===== Inline Video Preview ===== */
+        .thumb-wrap {
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+        }
+        .thumb-wrap:hover .play-overlay { opacity: 1; }
+        .play-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.38);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .play-overlay-btn {
+            width: 64px;
+            height: 64px;
+            background: rgba(255,255,255,0.18);
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .play-overlay-btn:hover { transform: scale(1.1); background: rgba(255,255,255,0.28); }
+        .play-overlay-btn svg { margin-left: 4px; }
+        .inline-player {
+            display: none;
+            width: 100%;
+            max-height: 360px;
+            background: #000;
+            outline: none;
+        }
+        .inline-player.active { display: block; }
+
         .card-body {
             padding: 20px;
         }
@@ -2049,8 +2089,16 @@
                     <!-- Result Area -->
                     <div id="result-area">
                         <div class="video-card">
-                            <div style="position:relative;">
+                            <div class="thumb-wrap" id="thumbWrap" onclick="app.togglePreview()">
                                 <img src="" alt="Thumbnail" class="video-thumb" id="resThumb">
+                                <video class="inline-player" id="inlinePlayer" controls controlsList="nodownload" playsinline></video>
+                                <div class="play-overlay" id="playOverlay">
+                                    <div class="play-overlay-btn">
+                                        <svg width="26" height="26" fill="white" viewBox="0 0 16 16">
+                                            <path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                                        </svg>
+                                    </div>
+                                </div>
                                 <span class="video-duration" id="resDuration">00:00</span>
                             </div>
                             <div class="card-body">
@@ -2575,13 +2623,18 @@
 
                 const formats = data.medias || data.formats || [];
 
-                formats.forEach((item) => {
+                formats.forEach((item, index) => {
                     const isVideo = item.type === 'video' || item.mimeType?.includes('video') || item.ext === 'mp4';
                     const quality = item.quality || (item.height ? `${item.height}p` : 'HQ');
                     const size = item.size ? ` (${item.size})` : '';
                     const safeUrl = (item.url || '').replace(/'/g, "\\'");
                     const ext = (item.ext || (isVideo ? 'mp4' : 'mp3')).toLowerCase();
                     const safeTitle = (data.title || 'download').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                    // Store first video URL for inline preview
+                    if (isVideo && index === 0 && item.url) {
+                        this.state.previewUrl = item.url;
+                    }
 
                     const html = `
                 <div class="format-item">
@@ -2608,6 +2661,36 @@
                 this.dom.resultArea.style.display = 'block';
                 this.switchTab('video');
                 this.dom.resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                // Reset preview player when new result loads
+                const player = document.getElementById('inlinePlayer');
+                const thumb = document.getElementById('resThumb');
+                if (player) { player.pause(); player.src = ''; player.classList.remove('active'); }
+                if (thumb) thumb.style.display = 'block';
+                const overlay = document.getElementById('playOverlay');
+                if (overlay) overlay.style.opacity = '';
+            }
+
+            togglePreview() {
+                const player = document.getElementById('inlinePlayer');
+                const thumb = document.getElementById('resThumb');
+                const overlay = document.getElementById('playOverlay');
+                if (!player || !this.state.previewUrl) return;
+
+                if (player.classList.contains('active')) {
+                    // Close player
+                    player.pause();
+                    player.classList.remove('active');
+                    thumb.style.display = 'block';
+                    overlay.style.display = '';
+                } else {
+                    // Open player
+                    player.src = this.state.previewUrl;
+                    player.classList.add('active');
+                    thumb.style.display = 'none';
+                    overlay.style.display = 'none';
+                    player.play().catch(() => {});
+                }
             }
 
             async triggerDownload(url, ext, rawTitle, quality) {
