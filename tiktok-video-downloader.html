@@ -3187,9 +3187,8 @@
                         return;
                     } catch (cobaltErr) {
                         console.warn('Cobalt failed:', cobaltErr.message);
-                        // Fallback: open in new tab so the user can watch/save manually
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                        this.showToast('⚠️ Opening in new tab — right-click video → Save As.', 'error');
+                        // Fallback: show manual save modal — never open full-screen tab
+                        this._showManualSaveModal(url, fileName);
                         return;
                     }
                 }
