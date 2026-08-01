@@ -3133,11 +3133,14 @@
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                // Helper: fetch a URL as blob and save with filename
-                const blobDownload = async (fetchUrl, opts = {}) => {
-                    const res = await fetch(fetchUrl, opts);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const blob = await res.blob();
+                // ─── Download proxy (Cloudflare Worker) ───────────────────────
+                // This worker fetches any URL server-side and returns the binary
+                // with Content-Disposition: attachment so it downloads instantly.
+                const SNAP_DL_PROXY = 'https://snapdown-proxy.peak-brosmao.workers.dev';
+
+                // Save a blob as fileName ─────────────────────────────────────
+                const saveBlobAs = (blob) => {
+                    if (!blob || blob.size === 0) throw new Error('Empty file received');
                     const blobUrl = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = blobUrl;
@@ -3145,121 +3148,119 @@
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 8000);
+                    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 12000);
+                };
+
+                // Fetch URL → blob ─────────────────────────────────────────────
+                const fetchBlob = async (fetchUrl, opts = {}) => {
+                    const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000), ...opts });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const blob = await res.blob();
+                    if (!blob || blob.size === 0) throw new Error('Empty response');
+                    return blob;
                 };
 
                 const isYouTubeCDN = url.includes('googlevideo.com') || url.includes('youtube.com/videoplayback');
 
+                // ═══ YOUTUBE PATH ═════════════════════════════════════════════
                 if (isYouTubeCDN) {
-                    // YouTube CDN URLs are IP-locked — direct blob & proxy both fail.
-                    // Route through Cobalt (open-source YT processor) which handles this server-side.
-                    this.showToast('⏳ Processing YouTube download via Cobalt…', 'success');
+                    this.showToast('⏳ Processing YouTube download…', 'success');
                     try {
                         const ytUrl = this.dom.input.value.trim();
                         const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
                         const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
-
-                        // Call Cobalt API — open-source server-side YouTube processor
                         const cobaltRes = await fetch('https://api.cobalt.tools/', {
                             method: 'POST',
-                            headers: {
-                                'Accept': 'application/json',
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                url: ytUrl,
-                                videoQuality: isAudio ? undefined : vQuality,
-                                isAudioOnly: isAudio,
-                                filenameStyle: 'pretty'
-                            })
+                            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: ytUrl, videoQuality: isAudio ? undefined : vQuality, isAudioOnly: isAudio, filenameStyle: 'pretty' }),
+                            signal: AbortSignal.timeout(20000)
                         });
-
                         if (!cobaltRes.ok) throw new Error(`Cobalt HTTP ${cobaltRes.status}`);
                         const cobalt = await cobaltRes.json();
                         if (cobalt.status === 'error') throw new Error(cobalt.error?.code || 'Cobalt error');
-
-                        const dlUrl = cobalt.url;
-                        if (!dlUrl) throw new Error('No URL returned from Cobalt');
-
-                        // Cobalt returns a tunnel URL — fetch it as blob and save
-                        await blobDownload(dlUrl);
+                        if (!cobalt.url) throw new Error('No URL from Cobalt');
+                        // Cobalt returns a proxied tunnel URL — fetch as blob
+                        const blob = await fetchBlob(cobalt.url);
+                        saveBlobAs(blob);
                         this.showToast('✅ Download started!', 'success');
                         return;
                     } catch (cobaltErr) {
                         console.warn('Cobalt failed:', cobaltErr.message);
-                        // Fallback: show manual save modal — never open full-screen tab
-                        this._showManualSaveModal(url, fileName);
+                        // Try our own proxy as fallback for YT too
+                        try {
+                            const blob = await fetchBlob(`${SNAP_DL_PROXY}?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`);
+                            saveBlobAs(blob);
+                            this.showToast('✅ Download started!', 'success');
+                            return;
+                        } catch (_) {}
+                        this.showToast('❌ YouTube download failed. Try a different quality.', 'error');
                         return;
                     }
                 }
 
-                this.showToast('⏳ Preparing download…', 'success');
+                // ═══ ALL OTHER PLATFORMS (TikTok, Instagram, etc.) ════════════
+                this.showToast('⏳ Downloading…', 'success');
 
-                // Step 1: Try direct blob fetch (works when server allows CORS)
+                // 1️⃣ Our Cloudflare Worker proxy (server-side, adds attachment header)
                 try {
-                    await blobDownload(url);
+                    const blob = await fetchBlob(`${SNAP_DL_PROXY}?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`);
+                    saveBlobAs(blob);
                     this.showToast('✅ Download started!', 'success');
                     return;
-                } catch (e1) {
-                    console.warn('Direct blob failed:', e1.message);
-                }
+                } catch (e1) { console.warn('[proxy-worker] failed:', e1.message); }
 
-                // Step 2: Try via corsproxy.io
+                // 2️⃣ Direct fetch (works if CDN allows CORS)
                 try {
-                    const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
-                    await blobDownload(proxyUrl);
+                    const blob = await fetchBlob(url);
+                    saveBlobAs(blob);
                     this.showToast('✅ Download started!', 'success');
                     return;
-                } catch (e2) {
-                    console.warn('corsproxy blob failed:', e2.message);
-                }
+                } catch (e2) { console.warn('[direct] failed:', e2.message); }
 
-                // Step 3: Try allorigins proxy
+                // 3️⃣ corsproxy.io
                 try {
-                    const aoUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-                    await blobDownload(aoUrl);
+                    const blob = await fetchBlob(`https://corsproxy.io/?url=${encodeURIComponent(url)}`);
+                    saveBlobAs(blob);
                     this.showToast('✅ Download started!', 'success');
                     return;
-                } catch (e3) {
-                    console.warn('allorigins blob failed:', e3.message);
-                }
+                } catch (e3) { console.warn('[corsproxy.io] failed:', e3.message); }
 
-                // Step 4: Last resort — show save modal (never open full-screen tab)
-                this._showManualSaveModal(url, fileName);
-            }
+                // 4️⃣ allorigins
+                try {
+                    const blob = await fetchBlob(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+                    saveBlobAs(blob);
+                    this.showToast('✅ Download started!', 'success');
+                    return;
+                } catch (e4) { console.warn('[allorigins] failed:', e4.message); }
 
-            _showManualSaveModal(url, fileName) {
-                // Remove existing modal if any
-                const existing = document.getElementById('manualSaveModal');
-                if (existing) existing.remove();
+                // 5️⃣ thingproxy
+                try {
+                    const blob = await fetchBlob(`https://thingproxy.freeboard.io/fetch/${url}`);
+                    saveBlobAs(blob);
+                    this.showToast('✅ Download started!', 'success');
+                    return;
+                } catch (e5) { console.warn('[thingproxy] failed:', e5.message); }
 
-                const modal = document.createElement('div');
-                modal.id = 'manualSaveModal';
-                modal.style.cssText = `
-                    position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
-                    background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);padding:16px;
-                `;
-                modal.innerHTML = `
-                    <div style="background:var(--bg-panel,#1e1e2e);border:1px solid var(--border-color,#333);border-radius:16px;padding:28px 24px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-                        <div style="font-size:2rem;margin-bottom:12px;">⬇️</div>
-                        <h3 style="margin:0 0 8px;font-size:1.1rem;color:var(--text-primary,#fff);">Save File Manually</h3>
-                        <p style="margin:0 0 20px;font-size:0.88rem;color:var(--text-secondary,#aaa);">
-                            Auto-download could not start. Click the button below then choose <strong>"Save As"</strong> to save the file.
-                        </p>
-                        <a href="${url}" download="${fileName}" target="_blank" rel="noopener noreferrer"
-                            style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border-radius:10px;padding:12px 24px;font-weight:600;font-size:0.9rem;text-decoration:none;margin-bottom:12px;">
-                            ⬇️ Save As — ${fileName}
-                        </a>
-                        <br>
-                        <button onclick="document.getElementById('manualSaveModal').remove()"
-                            style="background:transparent;border:1px solid var(--border-color,#444);color:var(--text-secondary,#aaa);border-radius:8px;padding:8px 20px;cursor:pointer;font-size:0.85rem;margin-top:8px;">
-                            Close
-                        </button>
-                    </div>
-                `;
-                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-                document.body.appendChild(modal);
-                this.showToast('⚠️ Click "Save As" in the popup to save the file.', 'error');
+                // 6️⃣ XMLHttpRequest fallback (sometimes bypasses where fetch fails)
+                try {
+                    const blob = await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', url, true);
+                        xhr.responseType = 'blob';
+                        xhr.timeout = 30000;
+                        xhr.onload = () => (xhr.status === 200 && xhr.response?.size > 0) ? resolve(xhr.response) : reject(new Error(`XHR ${xhr.status}`));
+                        xhr.onerror = () => reject(new Error('XHR error'));
+                        xhr.ontimeout = () => reject(new Error('XHR timeout'));
+                        xhr.send();
+                    });
+                    saveBlobAs(blob);
+                    this.showToast('✅ Download started!', 'success');
+                    return;
+                } catch (e6) { console.warn('[XHR] failed:', e6.message); }
+
+                // All failed — notify user
+                this.showToast('❌ Download failed. Please set up the download proxy (see console).', 'error');
+                console.error('All download methods failed for URL:', url, '\nSet up the Cloudflare Worker proxy at:', SNAP_DL_PROXY);
             }
 
             switchTab(type) {
