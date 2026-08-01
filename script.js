@@ -443,7 +443,12 @@ class App {
                         const cobaltRes = await fetch('https://api.cobalt.tools/', {
                             method: 'POST',
                             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ url: ytUrl, videoQuality: isAudio ? undefined : vQuality, isAudioOnly: isAudio, filenameStyle: 'pretty' }),
+                            body: JSON.stringify({
+                                url: ytUrl,
+                                downloadMode: isAudio ? 'audio' : 'auto',
+                                videoQuality: isAudio ? '1080' : vQuality,
+                                filenameStyle: 'pretty'
+                            }),
                             signal: AbortSignal.timeout(20000)
                         });
                         if (!cobaltRes.ok) throw new Error(`Cobalt HTTP ${cobaltRes.status}`);
