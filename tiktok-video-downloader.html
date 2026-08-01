@@ -3235,8 +3235,9 @@
 
                     // 4️⃣ Final Guaranteed Fallback: Instant redirect to SSYouTube / SaveFrom downloader
                     if (ytVideoId) {
-                        this.showToast('⚡ Opening direct YouTube download page…', 'success');
-                        window.open(`https://ssyoutube.com/watch?v=${ytVideoId}`, '_blank');
+                        const partnerUrl = `https://ssyoutube.com/watch?v=${ytVideoId}`;
+                        this.showToast(`⚡ Redirecting to download page… <a href="${partnerUrl}" target="_blank" style="color:#fff;text-decoration:underline;font-weight:bold;margin-left:6px;">Click here if not redirected</a>`, 'success', 12000);
+                        setTimeout(() => { window.location.href = partnerUrl; }, 600);
                         return;
                     }
 
