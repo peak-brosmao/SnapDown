@@ -2517,30 +2517,52 @@
                 this.dom.resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
 
-            triggerDownload(url, ext, rawTitle) {
+            async triggerDownload(url, ext, rawTitle) {
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                let downloadUrl = url;
+                this.showToast('Preparing download, please wait…', 'success');
 
-                // For Google Video / YouTube streams, &title parameter forces Content-Disposition: attachment header
-                if (downloadUrl.includes('googlevideo.com') || downloadUrl.includes('google.com')) {
-                    downloadUrl = downloadUrl.replace(/&title=[^&]*/g, '');
-                    downloadUrl += `&title=${encodeURIComponent(cleanTitle)}`;
+                try {
+                    // Fetch the media as a blob to force a true file download
+                    // This bypasses the browser's "open in tab" behavior for cross-origin media URLs
+                    const response = await fetch(url, { mode: 'cors' });
+
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = fileName;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+
+                    // Revoke blob URL after download starts to free memory
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                        a.remove();
+                    }, 5000);
+
+                    this.showToast('✅ Download started! File is saving to your device.', 'success');
+                } catch (err) {
+                    console.warn('Blob download failed, falling back to direct link:', err);
+
+                    // Fallback: direct link (may open in tab for some hosts, but worth trying)
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => a.remove(), 1000);
+
+                    this.showToast('⚠️ Direct link opened — right-click the file and choose "Save As" to download.', 'error');
                 }
-
-                // Native attachment download trigger (no navigation, no new tab)
-                const a = document.createElement('a');
-                a.href = downloadUrl;
-                a.download = fileName;
-                a.rel = 'noopener noreferrer';
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                a.click();
-
-                setTimeout(() => a.remove(), 1000);
-
-                this.showToast('Download started! File is saving to your device.', 'success');
             }
 
             switchTab(type) {
