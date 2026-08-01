@@ -3133,10 +3133,11 @@
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                // ─── Download proxy (Cloudflare Worker) ───────────────────────
-                // This worker fetches any URL server-side and returns the binary
+                // ─── Download proxy (Vercel API route) ───────────────────────
+                // /api/proxy fetches any URL server-side and returns the binary
                 // with Content-Disposition: attachment so it downloads instantly.
-                const SNAP_DL_PROXY = 'https://snapdown-proxy.peak-brosmao.workers.dev';
+                // Same-origin = no CORS issues at all.
+                const SNAP_DL_PROXY = '/api/proxy';
 
                 // Save a blob as fileName ─────────────────────────────────────
                 const saveBlobAs = (blob) => {
