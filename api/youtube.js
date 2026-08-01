@@ -90,10 +90,11 @@ function sendError(res, status, msg) {
 
 function extractVideoId(url) {
   if (!url) return null;
-  const m = url.match(
-    /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|shorts\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i
-  );
-  return m?.[1] || (url.length === 11 ? url : null);
+  const cleaned = url.trim();
+  const m = cleaned.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|shorts\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{8,12})/i);
+  if (m?.[1]) return m[1];
+  if (/^[a-zA-Z0-9_-]{8,12}$/.test(cleaned)) return cleaned;
+  return null;
 }
 
 /** POST to InnerTube endpoint using native Node https module */

@@ -437,26 +437,32 @@ class App {
 
                 // ═══ YOUTUBE PATH ═════════════════════════════════════════════
                 if (isYouTube) {
-                    this.showToast('⏳ Downloading YouTube video…', 'success');
+                    this.showToast('⏳ Processing YouTube video download…', 'success');
                     const ytUrl = inputUrl || url;
                     const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
                     const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
 
-                    // 1️⃣ Our /api/youtube endpoint (multi-client server-side proxy) — primary method
+                    // Extract YouTube video ID cleanly
+                    const ytIdMatch = ytUrl.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|shorts\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{8,12})/i);
+                    const ytVideoId = ytIdMatch ? ytIdMatch[1] : null;
+
+                    // 1️⃣ Primary: Our /api/youtube endpoint (server-side stream proxy)
                     try {
                         const apiUrl = `/api/youtube?url=${encodeURIComponent(ytUrl)}&quality=${vQuality}&mode=${isAudio ? 'audio' : 'video'}`;
-                        const res = await fetch(apiUrl, { signal: AbortSignal.timeout(120000) });
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        const blob = await res.blob();
-                        if (!blob || blob.size === 0) throw new Error('Empty response');
-                        saveBlobAs(blob);
-                        this.showToast('✅ Download started!', 'success');
-                        return;
+                        const res = await fetch(apiUrl, { signal: AbortSignal.timeout(60000) });
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            if (blob && blob.size > 0) {
+                                saveBlobAs(blob);
+                                this.showToast('✅ Download started!', 'success');
+                                return;
+                            }
+                        }
                     } catch (ytErr) {
-                        console.warn('[/api/youtube] failed:', ytErr.message);
+                        console.warn('[/api/youtube] proxy streaming unavailable:', ytErr.message);
                     }
 
-                    // 2️⃣ Cobalt API instances fallback (v10 spec)
+                    // 2️⃣ Secondary: Cobalt API instances
                     const cobaltInstances = ['https://api.cobalt.tools/'];
                     for (const cobUrl of cobaltInstances) {
                         try {
@@ -468,35 +474,43 @@ class App {
                                     videoQuality: vQuality,
                                     downloadMode: isAudio ? 'audio' : 'auto'
                                 }),
-                                signal: AbortSignal.timeout(15000)
+                                signal: AbortSignal.timeout(10000)
                             });
-                            if (!cobaltRes.ok) throw new Error(`Cobalt HTTP ${cobaltRes.status}`);
-                            const cobalt = await cobaltRes.json();
-                            if (cobalt.status === 'error') throw new Error(cobalt.error?.code || 'Cobalt error');
-                            const targetUrl = cobalt.url || cobalt.picker?.[0]?.url;
-                            if (!targetUrl) throw new Error('No URL returned from Cobalt');
-                            const blob = await fetchBlob(targetUrl);
-                            saveBlobAs(blob);
-                            this.showToast('✅ Download started!', 'success');
-                            return;
+                            if (cobaltRes.ok) {
+                                const cobalt = await cobaltRes.json();
+                                const targetUrl = cobalt.url || cobalt.picker?.[0]?.url;
+                                if (targetUrl) {
+                                    const blob = await fetchBlob(targetUrl);
+                                    saveBlobAs(blob);
+                                    this.showToast('✅ Download started!', 'success');
+                                    return;
+                                }
+                            }
                         } catch (cobaltErr) {
-                            console.warn(`[Cobalt] failed (${cobUrl}):`, cobaltErr.message);
+                            console.warn(`[Cobalt] unavailable:`, cobaltErr.message);
                         }
                     }
 
-                    // 3️⃣ Direct proxy fallback if stream URL is direct
-                    if (url && (url.includes('googlevideo.com') || url.includes('http'))) {
+                    // 3️⃣ Tertiary: Direct proxy fallback
+                    if (url && url.startsWith('http') && !url.includes('youtu.be') && !url.includes('youtube.com')) {
                         try {
                             const blob = await fetchBlob(`${SNAP_DL_PROXY}?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`);
                             saveBlobAs(blob);
                             this.showToast('✅ Download started!', 'success');
                             return;
                         } catch (pErr) {
-                            console.warn('[YouTube proxy fallback] failed:', pErr.message);
+                            console.warn('[YouTube direct proxy] failed:', pErr.message);
                         }
                     }
 
-                    this.showToast('❌ YouTube download failed. Try a different quality.', 'error');
+                    // 4️⃣ Final Guaranteed Fallback: Instant redirect to SSYouTube / SaveFrom downloader
+                    if (ytVideoId) {
+                        this.showToast('⚡ Opening direct YouTube download page…', 'success');
+                        window.open(`https://ssyoutube.com/watch?v=${ytVideoId}`, '_blank');
+                        return;
+                    }
+
+                    this.showToast('❌ Unable to process YouTube URL. Please check the link.', 'error');
                     return;
                 }
 
