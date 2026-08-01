@@ -435,18 +435,31 @@ class App {
 
                 // ═══ YOUTUBE PATH ═════════════════════════════════════════════
                 if (isYouTubeCDN) {
-                    this.showToast('⏳ Processing YouTube download…', 'success');
+                    this.showToast('⏳ Downloading YouTube video…', 'success');
+                    const ytUrl = this.dom.input.value.trim();
+                    const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
+                    const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
+
+                    // 1️⃣ Our /api/youtube endpoint (ytdl-core server-side) — primary method
                     try {
-                        const ytUrl = this.dom.input.value.trim();
-                        const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
-                        const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
+                        const apiUrl = `/api/youtube?url=${encodeURIComponent(ytUrl)}&quality=${vQuality}&mode=${isAudio ? 'audio' : 'video'}`;
+                        const blob = await fetchBlob(apiUrl);
+                        saveBlobAs(blob);
+                        this.showToast('✅ Download started!', 'success');
+                        return;
+                    } catch (ytErr) {
+                        console.warn('[/api/youtube] failed:', ytErr.message);
+                    }
+
+                    // 2️⃣ Cobalt API fallback
+                    try {
                         const cobaltRes = await fetch('https://api.cobalt.tools/', {
                             method: 'POST',
                             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 url: ytUrl,
                                 downloadMode: isAudio ? 'audio' : 'auto',
-                                videoQuality: isAudio ? '1080' : vQuality,
+                                videoQuality: vQuality,
                                 filenameStyle: 'pretty'
                             }),
                             signal: AbortSignal.timeout(20000)
@@ -460,17 +473,11 @@ class App {
                         this.showToast('✅ Download started!', 'success');
                         return;
                     } catch (cobaltErr) {
-                        console.warn('Cobalt failed:', cobaltErr.message);
-                        // Try our proxy as fallback for YT too
-                        try {
-                            const blob = await fetchBlob(`${SNAP_DL_PROXY}?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`);
-                            saveBlobAs(blob);
-                            this.showToast('✅ Download started!', 'success');
-                            return;
-                        } catch (_) {}
-                        this.showToast('❌ YouTube download failed. Try a different quality.', 'error');
-                        return;
+                        console.warn('[Cobalt] failed:', cobaltErr.message);
                     }
+
+                    this.showToast('❌ YouTube download failed. Try a different quality.', 'error');
+                    return;
                 }
 
                 // ═══ ALL OTHER PLATFORMS (Facebook, Instagram, etc.) ══════════
