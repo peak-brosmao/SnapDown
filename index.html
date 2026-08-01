@@ -2521,48 +2521,53 @@
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                this.showToast('Preparing download, please wait…', 'success');
-
-                try {
-                    // Fetch the media as a blob to force a true file download
-                    // This bypasses the browser's "open in tab" behavior for cross-origin media URLs
-                    const response = await fetch(url, { mode: 'cors' });
-
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                    const blob = await response.blob();
+                // Helper: fetch a URL as blob and trigger download
+                const blobDownload = async (fetchUrl) => {
+                    const res = await fetch(fetchUrl);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const blob = await res.blob();
                     const blobUrl = URL.createObjectURL(blob);
-
                     const a = document.createElement('a');
                     a.href = blobUrl;
                     a.download = fileName;
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();
+                    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 5000);
+                };
 
-                    // Revoke blob URL after download starts to free memory
-                    setTimeout(() => {
-                        URL.revokeObjectURL(blobUrl);
-                        a.remove();
-                    }, 5000);
+                this.showToast('⏳ Preparing download…', 'success');
 
-                    this.showToast('✅ Download started! File is saving to your device.', 'success');
-                } catch (err) {
-                    console.warn('Blob download failed, falling back to direct link:', err);
-
-                    // Fallback: direct link (may open in tab for some hosts, but worth trying)
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    a.target = '_blank';
-                    a.rel = 'noopener noreferrer';
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => a.remove(), 1000);
-
-                    this.showToast('⚠️ Direct link opened — right-click the file and choose "Save As" to download.', 'error');
+                // Step 1: Try direct blob fetch
+                try {
+                    await blobDownload(url);
+                    this.showToast('✅ Download started!', 'success');
+                    return;
+                } catch (e1) {
+                    console.warn('Direct blob failed:', e1.message);
                 }
+
+                // Step 2: Try via CORS proxy (handles most CDN/CORS-blocked URLs)
+                try {
+                    const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+                    await blobDownload(proxyUrl);
+                    this.showToast('✅ Download started!', 'success');
+                    return;
+                } catch (e2) {
+                    console.warn('Proxy blob failed:', e2.message);
+                }
+
+                // Step 3: Last resort — open direct link in new tab
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => a.remove(), 1000);
+                this.showToast('⚠️ File opened in new tab — right-click → "Save As" to save it.', 'error');
             }
 
             switchTab(type) {
