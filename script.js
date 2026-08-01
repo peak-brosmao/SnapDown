@@ -431,19 +431,20 @@ class App {
                     return blob;
                 };
 
-                const isYouTubeCDN = url.includes('googlevideo.com') || url.includes('youtube.com/videoplayback');
+                const inputUrl = (this.dom.input?.value || '').trim();
+                const isTikTok = url.includes('tiktok.com') || url.includes('tiktokcdn.com') || inputUrl.includes('tiktok.com');
+                const isYouTube = !isTikTok && (url.includes('googlevideo.com') || url.includes('youtube.com') || url.includes('youtu.be') || inputUrl.includes('youtube.com') || inputUrl.includes('youtu.be'));
 
                 // ═══ YOUTUBE PATH ═════════════════════════════════════════════
-                if (isYouTubeCDN) {
+                if (isYouTube) {
                     this.showToast('⏳ Downloading YouTube video…', 'success');
-                    const ytUrl = this.dom.input.value.trim();
+                    const ytUrl = inputUrl || url;
                     const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
                     const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
 
-                    // 1️⃣ Our /api/youtube endpoint (ytdl-core server-side) — primary method
+                    // 1️⃣ Our /api/youtube endpoint (multi-client server-side proxy) — primary method
                     try {
                         const apiUrl = `/api/youtube?url=${encodeURIComponent(ytUrl)}&quality=${vQuality}&mode=${isAudio ? 'audio' : 'video'}`;
-                        // Use 120s timeout — large videos take time to stream from server
                         const res = await fetch(apiUrl, { signal: AbortSignal.timeout(120000) });
                         if (!res.ok) throw new Error(`HTTP ${res.status}`);
                         const blob = await res.blob();
@@ -455,29 +456,44 @@ class App {
                         console.warn('[/api/youtube] failed:', ytErr.message);
                     }
 
-                    // 2️⃣ Cobalt API fallback
-                    try {
-                        const cobaltRes = await fetch('https://api.cobalt.tools/', {
-                            method: 'POST',
-                            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                url: ytUrl,
-                                downloadMode: isAudio ? 'audio' : 'auto',
-                                videoQuality: vQuality,
-                                filenameStyle: 'pretty'
-                            }),
-                            signal: AbortSignal.timeout(20000)
-                        });
-                        if (!cobaltRes.ok) throw new Error(`Cobalt HTTP ${cobaltRes.status}`);
-                        const cobalt = await cobaltRes.json();
-                        if (cobalt.status === 'error') throw new Error(cobalt.error?.code || 'Cobalt error');
-                        if (!cobalt.url) throw new Error('No URL from Cobalt');
-                        const blob = await fetchBlob(cobalt.url);
-                        saveBlobAs(blob);
-                        this.showToast('✅ Download started!', 'success');
-                        return;
-                    } catch (cobaltErr) {
-                        console.warn('[Cobalt] failed:', cobaltErr.message);
+                    // 2️⃣ Cobalt API instances fallback (v10 spec)
+                    const cobaltInstances = ['https://api.cobalt.tools/'];
+                    for (const cobUrl of cobaltInstances) {
+                        try {
+                            const cobaltRes = await fetch(cobUrl, {
+                                method: 'POST',
+                                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    url: ytUrl,
+                                    videoQuality: vQuality,
+                                    downloadMode: isAudio ? 'audio' : 'auto'
+                                }),
+                                signal: AbortSignal.timeout(15000)
+                            });
+                            if (!cobaltRes.ok) throw new Error(`Cobalt HTTP ${cobaltRes.status}`);
+                            const cobalt = await cobaltRes.json();
+                            if (cobalt.status === 'error') throw new Error(cobalt.error?.code || 'Cobalt error');
+                            const targetUrl = cobalt.url || cobalt.picker?.[0]?.url;
+                            if (!targetUrl) throw new Error('No URL returned from Cobalt');
+                            const blob = await fetchBlob(targetUrl);
+                            saveBlobAs(blob);
+                            this.showToast('✅ Download started!', 'success');
+                            return;
+                        } catch (cobaltErr) {
+                            console.warn(`[Cobalt] failed (${cobUrl}):`, cobaltErr.message);
+                        }
+                    }
+
+                    // 3️⃣ Direct proxy fallback if stream URL is direct
+                    if (url && (url.includes('googlevideo.com') || url.includes('http'))) {
+                        try {
+                            const blob = await fetchBlob(`${SNAP_DL_PROXY}?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`);
+                            saveBlobAs(blob);
+                            this.showToast('✅ Download started!', 'success');
+                            return;
+                        } catch (pErr) {
+                            console.warn('[YouTube proxy fallback] failed:', pErr.message);
+                        }
                     }
 
                     this.showToast('❌ YouTube download failed. Try a different quality.', 'error');
