@@ -900,111 +900,120 @@
         }
 
         /* ===== Inline Video Preview Player ===== */
-        .thumb-wrap { position: relative; cursor: pointer; overflow: hidden; }
+        .thumb-wrap { position: relative; cursor: pointer; overflow: hidden; border-radius: 20px 20px 0 0; }
         .thumb-wrap:hover .play-overlay { opacity: 1; }
         .play-overlay {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.42);
+            background: rgba(0,0,0,0.35);
             opacity: 0; transition: opacity 0.25s ease;
+            border-radius: inherit;
         }
         .play-overlay-btn {
-            width: 68px; height: 68px;
+            width: 72px; height: 72px;
             background: var(--gradient-brand);
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 32px rgba(77,124,254,0.5);
-            transition: transform 0.2s var(--trans-spring), box-shadow 0.2s ease;
+            box-shadow: 0 0 40px rgba(77,124,254,0.55);
+            transition: transform 0.22s var(--trans-spring), box-shadow 0.2s ease;
         }
-        .play-overlay-btn:hover { transform: scale(1.12); box-shadow: 0 0 48px rgba(77,124,254,0.7); }
-        .play-overlay-btn svg { margin-left: 5px; }
+        .play-overlay-btn:hover { transform: scale(1.13); box-shadow: 0 0 56px rgba(77,124,254,0.75); }
+        .play-overlay-btn svg { margin-left: 6px; }
 
-        /* Video container (hidden by default) */
+        /* ── Custom player wrapper ── */
         .custom-player-wrap {
             display: none;
-            flex-direction: column;
+            position: relative;
             background: #000;
-            border-radius: 0;
+            border-radius: 20px 20px 0 0;
             overflow: hidden;
         }
-        .custom-player-wrap.active { display: flex; }
+        .custom-player-wrap.active { display: block; }
+
+        /* The actual <video> */
         .custom-player-wrap video {
-            width: 100%; max-height: 340px;
-            display: block; background: #000;
+            width: 100%;
+            display: block;
+            max-height: 360px;
+            background: #000;
             outline: none;
+            cursor: pointer;
         }
 
-        /* Controls bar */
+        /* Controls overlay (sits on TOP of video, bottom-aligned) */
         .cp-controls {
-            background: linear-gradient(180deg, rgba(10,12,17,0.0) 0%, rgba(10,12,17,0.95) 100%);
-            padding: 10px 16px 14px;
-            display: flex; flex-direction: column; gap: 10px;
-            margin-top: -2px;
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 40px 14px 12px;
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, transparent 100%);
+            display: flex; flex-direction: column; gap: 8px;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            pointer-events: none;
         }
-        /* Progress / seek */
+        .custom-player-wrap:hover .cp-controls,
+        .custom-player-wrap.paused .cp-controls { opacity: 1; pointer-events: all; }
+
+        /* Seek bar */
         .cp-seek-wrap {
-            position: relative; height: 5px;
-            background: rgba(255,255,255,0.12);
+            position: relative; height: 4px;
+            background: rgba(255,255,255,0.2);
             border-radius: 99px; cursor: pointer;
             transition: height 0.15s ease;
         }
-        .cp-seek-wrap:hover { height: 7px; }
+        .cp-seek-wrap:hover { height: 6px; }
         .cp-seek-fill {
             height: 100%; border-radius: 99px;
             background: var(--gradient-brand);
             pointer-events: none;
-            transition: width 0.1s linear;
         }
         .cp-seek-thumb {
             position: absolute; top: 50%;
-            width: 14px; height: 14px;
+            width: 13px; height: 13px;
             background: #fff;
             border-radius: 50%;
             transform: translate(-50%, -50%) scale(0);
             transition: transform 0.15s ease;
             pointer-events: none;
-            box-shadow: 0 0 6px rgba(77,124,254,0.8);
+            box-shadow: 0 0 8px rgba(77,124,254,0.9);
         }
         .cp-seek-wrap:hover .cp-seek-thumb { transform: translate(-50%, -50%) scale(1); }
+
         /* Bottom row */
-        .cp-bottom {
-            display: flex; align-items: center; gap: 12px;
-        }
+        .cp-bottom { display: flex; align-items: center; gap: 10px; }
         .cp-btn {
             background: transparent; border: none;
             color: #fff; cursor: pointer;
-            padding: 4px; display: flex; align-items: center; justify-content: center;
-            border-radius: 6px; opacity: 0.85;
-            transition: opacity 0.15s ease, background 0.15s ease;
+            padding: 5px; display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; opacity: 0.9;
+            transition: opacity 0.15s, background 0.15s;
             flex-shrink: 0;
         }
-        .cp-btn:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+        .cp-btn:hover { opacity: 1; background: rgba(255,255,255,0.12); }
         .cp-time {
-            font-size: 12px; color: rgba(255,255,255,0.75);
-            font-family: var(--font-mono); white-space: nowrap;
-            flex-shrink: 0;
+            font-size: 11.5px; color: rgba(255,255,255,0.8);
+            font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0;
         }
         .cp-spacer { flex: 1; }
-        /* Volume row */
-        .cp-vol-wrap {
-            display: flex; align-items: center; gap: 8px;
-        }
+        .cp-vol-wrap { display: flex; align-items: center; gap: 7px; }
         .cp-vol-slider {
-            -webkit-appearance: none;
-            width: 72px; height: 4px;
-            background: rgba(255,255,255,0.15);
+            -webkit-appearance: none; appearance: none;
+            width: 68px; height: 3px;
+            background: rgba(255,255,255,0.25);
             border-radius: 99px; outline: none; cursor: pointer;
+            accent-color: #4d7cfe;
         }
         .cp-vol-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             width: 12px; height: 12px;
             border-radius: 50%; background: #fff;
-            box-shadow: 0 0 4px rgba(77,124,254,0.6);
+            box-shadow: 0 0 4px rgba(77,124,254,0.7);
         }
         .cp-vol-slider::-moz-range-thumb {
             width: 12px; height: 12px;
             border-radius: 50%; background: #fff; border: none;
         }
+
 
         .card-body {
             padding: 20px;
@@ -2850,13 +2859,28 @@
 
                 // Play/pause button
                 playBtn.addEventListener('click', () => {
-                    if (vid.paused) { vid.play(); this._updatePlayIcon(true); }
-                    else { vid.pause(); this._updatePlayIcon(false); }
+                    if (vid.paused) { vid.play(); }
+                    else { vid.pause(); }
                 });
 
-                vid.addEventListener('play', () => this._updatePlayIcon(true));
-                vid.addEventListener('pause', () => this._updatePlayIcon(false));
-                vid.addEventListener('ended', () => this._updatePlayIcon(false));
+                // Click on video to play/pause
+                vid.addEventListener('click', () => {
+                    if (vid.paused) vid.play(); else vid.pause();
+                });
+
+                vid.addEventListener('play', () => {
+                    this._updatePlayIcon(true);
+                    document.getElementById('customPlayerWrap')?.classList.remove('paused');
+                });
+                vid.addEventListener('pause', () => {
+                    this._updatePlayIcon(false);
+                    document.getElementById('customPlayerWrap')?.classList.add('paused');
+                });
+                vid.addEventListener('ended', () => {
+                    this._updatePlayIcon(false);
+                    document.getElementById('customPlayerWrap')?.classList.add('paused');
+                });
+
 
                 // Seek
                 let seeking = false;
