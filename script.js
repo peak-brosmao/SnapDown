@@ -443,7 +443,11 @@ class App {
                     // 1️⃣ Our /api/youtube endpoint (ytdl-core server-side) — primary method
                     try {
                         const apiUrl = `/api/youtube?url=${encodeURIComponent(ytUrl)}&quality=${vQuality}&mode=${isAudio ? 'audio' : 'video'}`;
-                        const blob = await fetchBlob(apiUrl);
+                        // Use 120s timeout — large videos take time to stream from server
+                        const res = await fetch(apiUrl, { signal: AbortSignal.timeout(120000) });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const blob = await res.blob();
+                        if (!blob || blob.size === 0) throw new Error('Empty response');
                         saveBlobAs(blob);
                         this.showToast('✅ Download started!', 'success');
                         return;
