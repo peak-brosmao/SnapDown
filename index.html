@@ -899,45 +899,112 @@
             font-family: var(--font-mono);
         }
 
-        /* ===== Inline Video Preview ===== */
-        .thumb-wrap {
-            position: relative;
-            cursor: pointer;
-            overflow: hidden;
-        }
+        /* ===== Inline Video Preview Player ===== */
+        .thumb-wrap { position: relative; cursor: pointer; overflow: hidden; }
         .thumb-wrap:hover .play-overlay { opacity: 1; }
         .play-overlay {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0,0,0,0.38);
-            opacity: 0;
-            transition: opacity 0.2s ease;
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.42);
+            opacity: 0; transition: opacity 0.25s ease;
         }
         .play-overlay-btn {
-            width: 64px;
-            height: 64px;
-            background: rgba(255,255,255,0.18);
-            border: 2px solid rgba(255,255,255,0.5);
+            width: 68px; height: 68px;
+            background: var(--gradient-brand);
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(4px);
-            transition: transform 0.2s ease, background 0.2s ease;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 32px rgba(77,124,254,0.5);
+            transition: transform 0.2s var(--trans-spring), box-shadow 0.2s ease;
         }
-        .play-overlay-btn:hover { transform: scale(1.1); background: rgba(255,255,255,0.28); }
-        .play-overlay-btn svg { margin-left: 4px; }
-        .inline-player {
+        .play-overlay-btn:hover { transform: scale(1.12); box-shadow: 0 0 48px rgba(77,124,254,0.7); }
+        .play-overlay-btn svg { margin-left: 5px; }
+
+        /* Video container (hidden by default) */
+        .custom-player-wrap {
             display: none;
-            width: 100%;
-            max-height: 360px;
+            flex-direction: column;
             background: #000;
+            border-radius: 0;
+            overflow: hidden;
+        }
+        .custom-player-wrap.active { display: flex; }
+        .custom-player-wrap video {
+            width: 100%; max-height: 340px;
+            display: block; background: #000;
             outline: none;
         }
-        .inline-player.active { display: block; }
+
+        /* Controls bar */
+        .cp-controls {
+            background: linear-gradient(180deg, rgba(10,12,17,0.0) 0%, rgba(10,12,17,0.95) 100%);
+            padding: 10px 16px 14px;
+            display: flex; flex-direction: column; gap: 10px;
+            margin-top: -2px;
+        }
+        /* Progress / seek */
+        .cp-seek-wrap {
+            position: relative; height: 5px;
+            background: rgba(255,255,255,0.12);
+            border-radius: 99px; cursor: pointer;
+            transition: height 0.15s ease;
+        }
+        .cp-seek-wrap:hover { height: 7px; }
+        .cp-seek-fill {
+            height: 100%; border-radius: 99px;
+            background: var(--gradient-brand);
+            pointer-events: none;
+            transition: width 0.1s linear;
+        }
+        .cp-seek-thumb {
+            position: absolute; top: 50%;
+            width: 14px; height: 14px;
+            background: #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.15s ease;
+            pointer-events: none;
+            box-shadow: 0 0 6px rgba(77,124,254,0.8);
+        }
+        .cp-seek-wrap:hover .cp-seek-thumb { transform: translate(-50%, -50%) scale(1); }
+        /* Bottom row */
+        .cp-bottom {
+            display: flex; align-items: center; gap: 12px;
+        }
+        .cp-btn {
+            background: transparent; border: none;
+            color: #fff; cursor: pointer;
+            padding: 4px; display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; opacity: 0.85;
+            transition: opacity 0.15s ease, background 0.15s ease;
+            flex-shrink: 0;
+        }
+        .cp-btn:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+        .cp-time {
+            font-size: 12px; color: rgba(255,255,255,0.75);
+            font-family: var(--font-mono); white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .cp-spacer { flex: 1; }
+        /* Volume row */
+        .cp-vol-wrap {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .cp-vol-slider {
+            -webkit-appearance: none;
+            width: 72px; height: 4px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 99px; outline: none; cursor: pointer;
+        }
+        .cp-vol-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px; height: 12px;
+            border-radius: 50%; background: #fff;
+            box-shadow: 0 0 4px rgba(77,124,254,0.6);
+        }
+        .cp-vol-slider::-moz-range-thumb {
+            width: 12px; height: 12px;
+            border-radius: 50%; background: #fff; border: none;
+        }
 
         .card-body {
             padding: 20px;
@@ -2089,9 +2156,8 @@
                     <!-- Result Area -->
                     <div id="result-area">
                         <div class="video-card">
-                            <div class="thumb-wrap" id="thumbWrap" onclick="app.togglePreview()">
+                            <div class="thumb-wrap" id="thumbWrap" onclick="app.openPreview()">
                                 <img src="" alt="Thumbnail" class="video-thumb" id="resThumb">
-                                <video class="inline-player" id="inlinePlayer" controls controlsList="nodownload" playsinline></video>
                                 <div class="play-overlay" id="playOverlay">
                                     <div class="play-overlay-btn">
                                         <svg width="26" height="26" fill="white" viewBox="0 0 16 16">
@@ -2100,6 +2166,50 @@
                                     </div>
                                 </div>
                                 <span class="video-duration" id="resDuration">00:00</span>
+                            </div>
+                            <!-- Custom Video Player -->
+                            <div class="custom-player-wrap" id="customPlayerWrap">
+                                <video id="inlinePlayer" playsinline preload="metadata"></video>
+                                <div class="cp-controls">
+                                    <div class="cp-seek-wrap" id="cpSeek">
+                                        <div class="cp-seek-fill" id="cpSeekFill" style="width:0%"></div>
+                                        <div class="cp-seek-thumb" id="cpSeekThumb" style="left:0%"></div>
+                                    </div>
+                                    <div class="cp-bottom">
+                                        <!-- Play/Pause -->
+                                        <button class="cp-btn" id="cpPlayBtn" title="Play / Pause">
+                                            <svg id="cpPlayIcon" width="20" height="20" fill="white" viewBox="0 0 16 16">
+                                                <path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                                            </svg>
+                                        </button>
+                                        <!-- Time -->
+                                        <span class="cp-time" id="cpTime">0:00 / 0:00</span>
+                                        <div class="cp-spacer"></div>
+                                        <!-- Volume -->
+                                        <div class="cp-vol-wrap">
+                                            <button class="cp-btn" id="cpMuteBtn" title="Mute">
+                                                <svg width="18" height="18" fill="white" viewBox="0 0 16 16" id="cpVolIcon">
+                                                    <path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/>
+                                                    <path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/>
+                                                    <path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8 3.49 3.49 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/>
+                                                </svg>
+                                            </button>
+                                            <input class="cp-vol-slider" type="range" id="cpVolSlider" min="0" max="1" step="0.02" value="1">
+                                        </div>
+                                        <!-- Fullscreen -->
+                                        <button class="cp-btn" id="cpFullBtn" title="Fullscreen">
+                                            <svg width="18" height="18" fill="white" viewBox="0 0 16 16">
+                                                <path d="M1.5 1h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5v-4a.5.5 0 0 1 1 0V1zm13 0v-3.5a.5.5 0 0 1 1 0v4a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1 0-1h3.5zM1 14.5V11a.5.5 0 0 0-1 0v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 0-1H1zm13 0h3.5a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 0-1 0V14h-3.5a.5.5 0 0 0 0 1z"/>
+                                            </svg>
+                                        </button>
+                                        <!-- Close player -->
+                                        <button class="cp-btn" id="cpCloseBtn" title="Close player">
+                                            <svg width="18" height="18" fill="white" viewBox="0 0 16 16">
+                                                <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div class="card-body">
                                 <h2 class="video-title" id="resTitle">Loading title...</h2>
@@ -2460,6 +2570,7 @@
                 this.renderHistory();
                 this.bindEvents();
                 this.initScrollSpy();
+                this.initPlayer();
             }
 
             bindEvents() {
@@ -2671,27 +2782,118 @@
                 if (overlay) overlay.style.opacity = '';
             }
 
-            togglePreview() {
-                const player = document.getElementById('inlinePlayer');
-                const thumb = document.getElementById('resThumb');
+            openPreview() {
+                if (!this.state.previewUrl) return;
+                const wrap = document.getElementById('customPlayerWrap');
+                const thumb = document.getElementById('thumbWrap').querySelector('img');
                 const overlay = document.getElementById('playOverlay');
-                if (!player || !this.state.previewUrl) return;
-
-                if (player.classList.contains('active')) {
-                    // Close player
-                    player.pause();
-                    player.classList.remove('active');
-                    thumb.style.display = 'block';
-                    overlay.style.display = '';
-                } else {
-                    // Open player
-                    player.src = this.state.previewUrl;
-                    player.classList.add('active');
-                    thumb.style.display = 'none';
-                    overlay.style.display = 'none';
-                    player.play().catch(() => {});
+                wrap.classList.add('active');
+                thumb.style.display = 'none';
+                overlay.style.display = 'none';
+                document.getElementById('resDuration').style.display = 'none';
+                const vid = document.getElementById('inlinePlayer');
+                if (!vid.src || vid.src !== this.state.previewUrl) {
+                    vid.src = this.state.previewUrl;
                 }
+                vid.play().catch(() => {});
+                this._updatePlayIcon(true);
             }
+
+            closePreview() {
+                const wrap = document.getElementById('customPlayerWrap');
+                const thumb = document.getElementById('thumbWrap').querySelector('img');
+                const overlay = document.getElementById('playOverlay');
+                const vid = document.getElementById('inlinePlayer');
+                vid.pause();
+                wrap.classList.remove('active');
+                thumb.style.display = 'block';
+                overlay.style.display = '';
+                document.getElementById('resDuration').style.display = '';
+            }
+
+            _updatePlayIcon(playing) {
+                const icon = document.getElementById('cpPlayIcon');
+                if (!icon) return;
+                icon.innerHTML = playing
+                    ? '<path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>'
+                    : '<path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>';
+            }
+
+            _fmtTime(s) {
+                if (isNaN(s)) return '0:00';
+                const m = Math.floor(s / 60);
+                const sec = Math.floor(s % 60).toString().padStart(2, '0');
+                return `${m}:${sec}`;
+            }
+
+            initPlayer() {
+                const vid = document.getElementById('inlinePlayer');
+                const seekWrap = document.getElementById('cpSeek');
+                const fill = document.getElementById('cpSeekFill');
+                const thumb = document.getElementById('cpSeekThumb');
+                const timeEl = document.getElementById('cpTime');
+                const playBtn = document.getElementById('cpPlayBtn');
+                const muteBtn = document.getElementById('cpMuteBtn');
+                const volSlider = document.getElementById('cpVolSlider');
+                const fullBtn = document.getElementById('cpFullBtn');
+                const closeBtn = document.getElementById('cpCloseBtn');
+                if (!vid) return;
+
+                // Time update
+                vid.addEventListener('timeupdate', () => {
+                    if (!vid.duration) return;
+                    const pct = (vid.currentTime / vid.duration) * 100;
+                    fill.style.width = pct + '%';
+                    thumb.style.left = pct + '%';
+                    timeEl.textContent = this._fmtTime(vid.currentTime) + ' / ' + this._fmtTime(vid.duration);
+                });
+
+                // Play/pause button
+                playBtn.addEventListener('click', () => {
+                    if (vid.paused) { vid.play(); this._updatePlayIcon(true); }
+                    else { vid.pause(); this._updatePlayIcon(false); }
+                });
+
+                vid.addEventListener('play', () => this._updatePlayIcon(true));
+                vid.addEventListener('pause', () => this._updatePlayIcon(false));
+                vid.addEventListener('ended', () => this._updatePlayIcon(false));
+
+                // Seek
+                let seeking = false;
+                const seek = (e) => {
+                    const rect = seekWrap.getBoundingClientRect();
+                    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                    if (vid.duration) vid.currentTime = pct * vid.duration;
+                };
+                seekWrap.addEventListener('mousedown', (e) => { seeking = true; seek(e); });
+                document.addEventListener('mousemove', (e) => { if (seeking) seek(e); });
+                document.addEventListener('mouseup', () => { seeking = false; });
+
+                // Touch seek
+                seekWrap.addEventListener('touchstart', (e) => { seek(e.touches[0]); }, { passive: true });
+                seekWrap.addEventListener('touchmove', (e) => { seek(e.touches[0]); }, { passive: true });
+
+                // Volume
+                volSlider.addEventListener('input', () => { vid.volume = volSlider.value; vid.muted = volSlider.value == 0; });
+                muteBtn.addEventListener('click', () => {
+                    vid.muted = !vid.muted;
+                    volSlider.value = vid.muted ? 0 : (vid.volume || 0.8);
+                    if (!vid.muted && vid.volume === 0) { vid.volume = 0.8; volSlider.value = 0.8; }
+                });
+
+                // Fullscreen
+                fullBtn.addEventListener('click', () => {
+                    const wrap = document.getElementById('customPlayerWrap');
+                    if (document.fullscreenElement) document.exitFullscreen();
+                    else wrap.requestFullscreen?.() || vid.webkitEnterFullscreen?.();
+                });
+
+                // Close
+                closeBtn.addEventListener('click', () => this.closePreview());
+            }
+
+            // legacy stub — was used before, kept so nothing breaks
+            togglePreview() { this.openPreview(); }
 
             async triggerDownload(url, ext, rawTitle, quality) {
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
