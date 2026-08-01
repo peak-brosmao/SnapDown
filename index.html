@@ -2517,86 +2517,30 @@
                 this.dom.resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
 
-            async triggerDownload(url, ext, rawTitle) {
-                const cleanTitle = (rawTitle || 'download').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+            triggerDownload(url, ext, rawTitle) {
+                const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                this.showToast('Downloading file to your device...', 'success');
+                let downloadUrl = url;
 
-                // 1. Direct Blob fetch
-                try {
-                    const res = await fetch(url, { mode: 'cors' });
-                    if (res.ok) {
-                        const blob = await res.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = blobUrl;
-                        a.download = fileName;
-                        a.style.display = 'none';
-                        document.body.appendChild(a);
-                        a.click();
-                        setTimeout(() => {
-                            URL.revokeObjectURL(blobUrl);
-                            a.remove();
-                        }, 1000);
-                        this.showToast('File saved to device downloads!', 'success');
-                        return;
-                    }
-                } catch (e) {
-                    console.warn('Direct blob fetch failed (CORS), trying proxy fetch...', e);
+                // For Google Video / YouTube streams, &title parameter forces Content-Disposition: attachment header
+                if (downloadUrl.includes('googlevideo.com') || downloadUrl.includes('google.com')) {
+                    downloadUrl = downloadUrl.replace(/&title=[^&]*/g, '');
+                    downloadUrl += `&title=${encodeURIComponent(cleanTitle)}`;
                 }
 
-                // 2. CORS Proxy Blob fetch
-                const proxies = [
-                    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-                    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
-                ];
-
-                for (const proxyUrl of proxies) {
-                    try {
-                        const res = await fetch(proxyUrl);
-                        if (res.ok) {
-                            const blob = await res.blob();
-                            const blobUrl = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = blobUrl;
-                            a.download = fileName;
-                            a.style.display = 'none';
-                            document.body.appendChild(a);
-                            a.click();
-                            setTimeout(() => {
-                                URL.revokeObjectURL(blobUrl);
-                                a.remove();
-                            }, 1000);
-                            this.showToast('File saved to device downloads!', 'success');
-                            return;
-                        }
-                    } catch (err) {
-                        console.warn('Proxy fetch failed:', proxyUrl, err);
-                    }
-                }
-
-                // 3. Fallback: Hidden anchor download on current page (NO target="_blank" -> NEVER opens a new tab)
-                console.warn('Fallback to same-page download trigger');
+                // Native attachment download trigger (no navigation, no new tab)
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = downloadUrl;
                 a.download = fileName;
+                a.rel = 'noopener noreferrer';
                 a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
+
                 setTimeout(() => a.remove(), 1000);
 
-                // Hidden iframe trigger fallback for cross-origin downloads
-                let iframe = document.getElementById('dl-hidden-iframe');
-                if (!iframe) {
-                    iframe = document.createElement('iframe');
-                    iframe.id = 'dl-hidden-iframe';
-                    iframe.style.display = 'none';
-                    document.body.appendChild(iframe);
-                }
-                iframe.src = url;
-
-                this.showToast('Download started (check your device downloads folder)', 'success');
+                this.showToast('Download started! File is saving to your device.', 'success');
             }
 
             switchTab(type) {
@@ -2678,13 +2622,16 @@
             }
 
             showToast(msg, type = 'success') {
+                const container = document.getElementById('toast-container');
+                if (container.children.length >= 2) {
+                    container.removeChild(container.firstChild);
+                }
                 const toast = document.createElement('div');
                 toast.className = `toast ${type}`;
                 let icon = type === 'success'
                     ? '<svg width="20" height="20" fill="#10b981" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/></svg>'
                     : '<svg width="20" height="20" fill="#ef4444" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8 4a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 4zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>';
                 toast.innerHTML = `${icon}<span>${msg}</span>`;
-                const container = document.getElementById('toast-container');
                 container.appendChild(toast);
                 setTimeout(() => {
                     toast.style.opacity = '0';
