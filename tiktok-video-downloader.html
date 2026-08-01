@@ -240,16 +240,16 @@
             --border-color: #242a35;
             --border-color-2: #2e3541;
 
-            --primary: #4d7cfe;
-            --primary-hover: #3563e0;
-            --primary-2: #8b5cf6;
-            --primary-soft: rgba(77, 124, 254, 0.12);
+            --primary: #FE2C55;
+            --primary-hover: #e0264c;
+            --primary-2: #25F4EE;
+            --primary-soft: rgba(254, 44, 85, 0.12);
             --secondary: #22c55e;
             --danger: #f2545b;
             --warning: #f5a623;
 
-            --gradient-brand: linear-gradient(135deg, #4d7cfe 0%, #8b5cf6 100%);
-            --gradient-text: linear-gradient(135deg, #7aa2ff 0%, #b794f6 60%, #f0abfc 100%);
+            --gradient-brand: linear-gradient(135deg, var(--primary), var(--primary-2));
+            --gradient-text: linear-gradient(90deg, var(--primary-2), var(--primary));
 
             --radius-sm: 8px;
             --radius-md: 14px;
@@ -2877,6 +2877,12 @@
                 const url = this.dom.input.value.trim();
                 if (!url) { this.showToast('Please enter a valid URL', 'error'); return; }
                 if (!url.startsWith('http')) { this.showToast('URL must start with http:// or https://', 'error'); return; }
+
+                // TikTok validation
+                if (!url.includes('tiktok.com')) {
+                    this.showToast('Please enter a valid TikTok link', 'error');
+                    return;
+                }
 
                 this.setLoading(true);
                 this.dom.resultArea.style.display = 'none';

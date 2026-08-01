@@ -240,16 +240,16 @@
             --border-color: #242a35;
             --border-color-2: #2e3541;
 
-            --primary: #4d7cfe;
-            --primary-hover: #3563e0;
-            --primary-2: #8b5cf6;
-            --primary-soft: rgba(77, 124, 254, 0.12);
+            --primary: #dc2743;
+            --primary-hover: #c61f39;
+            --primary-2: #bc1888;
+            --primary-soft: rgba(220, 39, 67, 0.12);
             --secondary: #22c55e;
             --danger: #f2545b;
             --warning: #f5a623;
 
-            --gradient-brand: linear-gradient(135deg, #4d7cfe 0%, #8b5cf6 100%);
-            --gradient-text: linear-gradient(135deg, #7aa2ff 0%, #b794f6 60%, #f0abfc 100%);
+            --gradient-brand: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+            --gradient-text: linear-gradient(90deg, #f09433, #bc1888);
 
             --radius-sm: 8px;
             --radius-md: 14px;
@@ -2877,6 +2877,12 @@
                 const url = this.dom.input.value.trim();
                 if (!url) { this.showToast('Please enter a valid URL', 'error'); return; }
                 if (!url.startsWith('http')) { this.showToast('URL must start with http:// or https://', 'error'); return; }
+
+                // Instagram validation
+                if (!url.includes('instagram.com')) {
+                    this.showToast('Please enter a valid Instagram link', 'error');
+                    return;
+                }
 
                 this.setLoading(true);
                 this.dom.resultArea.style.display = 'none';
