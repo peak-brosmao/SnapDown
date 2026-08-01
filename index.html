@@ -2618,7 +2618,7 @@
                         <span>${ext.toUpperCase()}</span>
                     </div>
                     <div class="format-actions">
-                        <button class="dl-btn" onclick="app.triggerDownload('${safeUrl}', '${ext}', '${safeTitle}')">
+                        <button class="dl-btn" onclick="app.triggerDownload('${safeUrl}', '${ext}', '${safeTitle}', '${quality}')">
                             Download
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
@@ -2638,22 +2638,13 @@
                 this.dom.resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
 
-            async triggerDownload(url, ext, rawTitle) {
+            async triggerDownload(url, ext, rawTitle, quality) {
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                // YouTube/Google Video CDN URLs are IP-locked — proxies always get 403.
-                // Show a dedicated modal with the link so the user can paste into IDM / JDownloader.
-                const isYouTubeCDN = url.includes('googlevideo.com') || url.includes('youtube.com/videoplayback');
-                if (isYouTubeCDN) {
-                    document.getElementById('ytLinkInput').value = url;
-                    document.getElementById('ytModal').classList.add('active');
-                    return;
-                }
-
-                // Helper: fetch a URL as blob and trigger a named file download
-                const blobDownload = async (fetchUrl) => {
-                    const res = await fetch(fetchUrl);
+                // Helper: fetch a URL as blob and save with filename
+                const blobDownload = async (fetchUrl, opts = {}) => {
+                    const res = await fetch(fetchUrl, opts);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     const blob = await res.blob();
                     const blobUrl = URL.createObjectURL(blob);
@@ -2663,8 +2654,55 @@
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 5000);
+                    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 8000);
                 };
+
+                const isYouTubeCDN = url.includes('googlevideo.com') || url.includes('youtube.com/videoplayback');
+
+                if (isYouTubeCDN) {
+                    // YouTube CDN URLs are IP-locked — direct blob & proxy both fail.
+                    // Route through Cobalt (open-source YT processor) which handles this server-side.
+                    this.showToast('⏳ Processing YouTube download via Cobalt…', 'success');
+                    try {
+                        const ytUrl = this.dom.input.value.trim();
+                        const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
+                        const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
+
+                        // Call Cobalt API — open-source server-side YouTube processor
+                        const cobaltRes = await fetch('https://api.cobalt.tools/', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                url: ytUrl,
+                                videoQuality: isAudio ? undefined : vQuality,
+                                isAudioOnly: isAudio,
+                                filenameStyle: 'pretty'
+                            })
+                        });
+
+                        if (!cobaltRes.ok) throw new Error(`Cobalt HTTP ${cobaltRes.status}`);
+                        const cobalt = await cobaltRes.json();
+                        if (cobalt.status === 'error') throw new Error(cobalt.error?.code || 'Cobalt error');
+
+                        const dlUrl = cobalt.url;
+                        if (!dlUrl) throw new Error('No URL returned from Cobalt');
+
+                        // Cobalt returns a tunnel URL — fetch it as blob and save
+                        await blobDownload(dlUrl);
+                        this.showToast('✅ Download started!', 'success');
+                        return;
+                    } catch (cobaltErr) {
+                        console.warn('Cobalt failed:', cobaltErr.message);
+                        // Fallback: show copy-link modal so user can use IDM
+                        document.getElementById('ytLinkInput').value = url;
+                        document.getElementById('ytModal').classList.add('active');
+                        this.showToast('⚠️ Auto-download failed. Copy link → paste into IDM.', 'error');
+                        return;
+                    }
+                }
 
                 this.showToast('⏳ Preparing download…', 'success');
 
