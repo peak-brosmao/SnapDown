@@ -1,26 +1,34 @@
 /**
  * /api/youtube — YouTube Download Proxy
  *
- * Strategy: Call YouTube's native InnerTube API as the Android YouTube app.
- * Android client trick returns direct, signed URLs that are NOT IP-locked,
- * so this Vercel server can proxy-stream them to the client.
+ * Uses YouTube's native InnerTube API (Android client) to get direct,
+ * non-IP-locked download URLs, then streams the response to the client.
  *
- * No npm packages — uses built-in fetch (Node.js 18+).
+ * Uses only built-in Node.js modules (https, http) — no npm packages needed.
  */
 
-// InnerTube Android client config (mimics YouTube Android app v19.x)
-const INNERTUBE_KEY = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
-const ANDROID_UA    = 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip';
+const https = require('https');
+const http  = require('http');
+
+// ─── Android client constants ──────────────────────────────────────────────
+const ANDROID_UA      = 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip';
+const INNERTUBE_KEY   = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
+const INNERTUBE_HOST  = 'www.youtube.com';
+const INNERTUBE_PATH  = `/youtubei/v1/player?key=${INNERTUBE_KEY}&prettyPrint=false`;
 const INNERTUBE_CONTEXT = {
   client: {
-    clientName:        'ANDROID',
-    clientVersion:     '19.09.37',
-    androidSdkVersion: 30,
-    userAgent:         ANDROID_UA,
+    clientName:         'ANDROID',
+    clientVersion:      '19.09.37',
+    androidSdkVersion:  30,
+    userAgent:          ANDROID_UA,
     hl: 'en',
     gl: 'US',
+    timeZone: 'UTC',
+    utcOffsetMinutes: 0,
   }
 };
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -42,95 +50,127 @@ function extractVideoId(url) {
   return m?.[1] || null;
 }
 
-async function getInnerTubeFormats(videoId) {
-  const endpoint = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}&prettyPrint=false`;
-  const resp = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type':          'application/json',
-      'User-Agent':            ANDROID_UA,
-      'X-YouTube-Client-Name':    '3',
-      'X-YouTube-Client-Version': '19.09.37',
-    },
-    body: JSON.stringify({ videoId, context: INNERTUBE_CONTEXT }),
-    signal: AbortSignal.timeout(15000),
+/** POST to InnerTube using built-in https module (no fetch needed) */
+function innerTubeRequest(videoId) {
+  return new Promise((resolve, reject) => {
+    const body = Buffer.from(JSON.stringify({
+      videoId,
+      context: INNERTUBE_CONTEXT,
+      racyCheckOk: true,
+      contentCheckOk: true,
+    }), 'utf8');
+
+    const req = https.request({
+      hostname: INNERTUBE_HOST,
+      port:     443,
+      path:     INNERTUBE_PATH,
+      method:   'POST',
+      headers: {
+        'Content-Type':             'application/json',
+        'Content-Length':           body.length,
+        'User-Agent':               ANDROID_UA,
+        'X-YouTube-Client-Name':    '3',
+        'X-YouTube-Client-Version': '19.09.37',
+        'Accept-Language':          'en-US,en;q=0.9',
+      },
+      timeout: 15000,
+    }, (res) => {
+      const chunks = [];
+      res.on('data',  c => chunks.push(c));
+      res.on('end',  () => {
+        if (res.statusCode >= 400) {
+          return reject(new Error(`InnerTube returned HTTP ${res.statusCode}`));
+        }
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        } catch {
+          reject(new Error('Invalid JSON from InnerTube'));
+        }
+      });
+    });
+
+    req.on('error',   reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('InnerTube request timed out')); });
+    req.write(body);
+    req.end();
   });
-
-  if (!resp.ok) throw new Error(`InnerTube API returned ${resp.status}`);
-
-  const data = await resp.json();
-
-  if (data.playabilityStatus?.status !== 'OK') {
-    throw new Error(`Video not playable: ${data.playabilityStatus?.reason || 'unknown'}`);
-  }
-
-  const streaming = data.streamingData;
-  if (!streaming) throw new Error('No streaming data in response');
-
-  // Combined formats (video + audio in one file) — easiest to download
-  const combined  = (streaming.formats         || []).filter(f => f.url);
-  // Adaptive formats (video-only or audio-only)
-  const adaptive  = (streaming.adaptiveFormats || []).filter(f => f.url);
-
-  return { combined, adaptive, title: data.videoDetails?.title || 'video' };
 }
 
-function pickVideoFormat(combined, adaptive, targetHeight) {
-  // 1. Prefer combined (video+audio) mp4 at or below target height
-  const mp4Combined = combined
-    .filter(f => (f.mimeType || '').startsWith('video/mp4'))
-    .sort((a, b) => (b.height || 0) - (a.height || 0));
+/** Stream a URL response directly to the HTTP res object */
+function streamUrl(sourceUrl, outRes, fileName, contentType, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    let target;
+    try { target = new URL(sourceUrl); } catch { return reject(new Error('Invalid source URL')); }
 
-  const exact = mp4Combined.find(f => (f.height || 0) <= targetHeight);
-  if (exact) return exact;
-  if (mp4Combined.length) return mp4Combined[0]; // best available
+    const lib = target.protocol === 'https:' ? https : http;
+    const req = lib.request({
+      hostname: target.hostname,
+      port:     target.port || (target.protocol === 'https:' ? 443 : 80),
+      path:     target.pathname + target.search,
+      method:   'GET',
+      headers: {
+        'User-Agent': ANDROID_UA,
+        'Referer':    'https://www.youtube.com/',
+        'Accept':     '*/*',
+      },
+      timeout: 60000,
+    }, (upstream) => {
+      // Follow redirects
+      if ([301, 302, 303, 307, 308].includes(upstream.statusCode) && upstream.headers.location && redirectsLeft > 0) {
+        upstream.resume();
+        return resolve(streamUrl(upstream.headers.location, outRes, fileName, contentType, redirectsLeft - 1));
+      }
 
-  // 2. Fallback to any combined format
-  if (combined.length) return combined[0];
+      if (upstream.statusCode >= 400) {
+        upstream.resume();
+        return reject(new Error(`CDN returned HTTP ${upstream.statusCode}`));
+      }
 
-  // 3. Fallback to adaptive video-only (no audio, but downloadable)
-  const adaptiveVideo = adaptive
-    .filter(f => (f.mimeType || '').startsWith('video/'))
-    .sort((a, b) => (b.height || 0) - (a.height || 0));
-  return adaptiveVideo.find(f => (f.height || 0) <= targetHeight) || adaptiveVideo[0] || null;
+      outRes.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+      outRes.setHeader('Content-Type', contentType);
+      outRes.setHeader('Cache-Control', 'no-store');
+      if (upstream.headers['content-length']) outRes.setHeader('Content-Length', upstream.headers['content-length']);
+      outRes.writeHead(200);
+
+      upstream.pipe(outRes);
+      upstream.on('end',   resolve);
+      upstream.on('error', reject);
+    });
+
+    req.on('error',   reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('CDN download timed out')); });
+    req.end();
+  });
 }
 
-function pickAudioFormat(adaptive) {
-  // Best audio-only format (prefer m4a / mp4 container)
+// ─── Format selection ──────────────────────────────────────────────────────
+
+function pickVideo(combined, adaptive, targetH) {
+  // 1. Combined mp4 (video+audio in one — best for playback without ffmpeg)
+  const mp4 = combined
+    .filter(f => (f.mimeType || '').startsWith('video/mp4') && f.url)
+    .sort((a, b) => (b.height || 0) - (a.height || 0));
+
+  return mp4.find(f => (f.height || 0) <= targetH)
+      || mp4[0]
+      // 2. Any combined format
+      || combined.find(f => f.url)
+      // 3. Adaptive video (no audio, but downloadable)
+      || adaptive.filter(f => (f.mimeType || '').startsWith('video/') && f.url)
+                 .sort((a, b) => (b.height || 0) - (a.height || 0))[0]
+      || null;
+}
+
+function pickAudio(adaptive) {
   const audio = adaptive
-    .filter(f => (f.mimeType || '').startsWith('audio/'))
+    .filter(f => (f.mimeType || '').startsWith('audio/') && f.url)
     .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
 
+  // Prefer mp4/m4a container
   return audio.find(f => (f.mimeType || '').includes('mp4')) || audio[0] || null;
 }
 
-async function proxyStream(sourceUrl, res, fileName, contentType) {
-  const upstream = await fetch(sourceUrl, {
-    headers: {
-      'User-Agent': ANDROID_UA,
-      'Referer':    'https://www.youtube.com/',
-      'Accept':     '*/*',
-    },
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!upstream.ok) throw new Error(`CDN returned ${upstream.status}`);
-
-  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-  res.setHeader('Content-Type', contentType);
-  res.setHeader('Cache-Control', 'no-store');
-
-  const cl = upstream.headers.get('content-length');
-  if (cl) res.setHeader('Content-Length', cl);
-
-  res.writeHead(200);
-
-  // Stream body chunks to client
-  for await (const chunk of upstream.body) {
-    if (!res.writableEnded) res.write(Buffer.from(chunk));
-  }
-  res.end();
-}
+// ─── Main handler ──────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
   cors(res);
@@ -150,29 +190,35 @@ module.exports = async function handler(req, res) {
   const targetHeight = parseInt((quality || '720').replace('p', '')) || 720;
 
   try {
-    const { combined, adaptive, title } = await getInnerTubeFormats(videoId);
+    // 1. Fetch video metadata from InnerTube
+    const data = await innerTubeRequest(videoId);
 
-    const cleanTitle = title.replace(/[^\w\s\-]/g, '').trim().replace(/\s+/g, '_').substring(0, 60) || 'video';
-
-    let format, ext, contentType;
-
-    if (isAudio) {
-      format      = pickAudioFormat(adaptive);
-      ext         = 'm4a';
-      contentType = 'audio/mp4';
-    } else {
-      format      = pickVideoFormat(combined, adaptive, targetHeight);
-      ext         = 'mp4';
-      contentType = 'video/mp4';
+    if (data.playabilityStatus?.status !== 'OK') {
+      return sendError(res, 403, `Video not available: ${data.playabilityStatus?.reason || 'restricted'}`);
     }
 
-    if (!format?.url) return sendError(res, 404, 'No suitable format found for this video');
+    const streaming = data.streamingData;
+    if (!streaming) return sendError(res, 502, 'YouTube returned no streaming data');
 
-    const fileName = `${cleanTitle}.${ext}`;
-    await proxyStream(format.url, res, fileName, contentType);
+    const combined = (streaming.formats         || []).filter(f => f.url);
+    const adaptive = (streaming.adaptiveFormats || []).filter(f => f.url);
+
+    // 2. Choose best format
+    const format = isAudio ? pickAudio(adaptive) : pickVideo(combined, adaptive, targetHeight);
+    if (!format?.url) return sendError(res, 404, 'No suitable format found for this video/quality');
+
+    // 3. Build filename
+    const rawTitle  = data.videoDetails?.title || 'video';
+    const cleanName = rawTitle.replace(/[^\w\s\-]/g, '').trim().replace(/\s+/g, '_').substring(0, 60) || 'video';
+    const ext         = isAudio ? 'm4a' : 'mp4';
+    const contentType = isAudio ? 'audio/mp4' : 'video/mp4';
+    const fileName    = `${cleanName}.${ext}`;
+
+    // 4. Proxy-stream the video directly to client
+    await streamUrl(format.url, res, fileName, contentType);
 
   } catch (err) {
     console.error('[/api/youtube]', err.message);
-    sendError(res, 500, `YouTube: ${err.message}`);
+    sendError(res, 500, `YouTube error: ${err.message}`);
   }
 };
