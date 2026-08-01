@@ -2452,7 +2452,28 @@
 
             renderResult(data) {
                 this.dom.resTitle.textContent = data.title || 'Unknown Video';
-                this.dom.resThumb.src = data.thumbnail || '';
+
+                // Thumbnail & Fallbacks
+                const inputUrl = this.dom.input.value.trim();
+                const ytMatch = inputUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([\w-]{11})/i);
+
+                let thumbUrl = data.thumbnail || data.thumb || data.picture || data.cover || data.image || '';
+
+                if (ytMatch && ytMatch[1]) {
+                    if (!thumbUrl || thumbUrl.includes('placeholder') || thumbUrl.includes('3dots')) {
+                        thumbUrl = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+                    }
+                }
+
+                this.dom.resThumb.onerror = () => {
+                    if (ytMatch && ytMatch[1]) {
+                        this.dom.resThumb.src = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+                    } else {
+                        this.dom.resThumb.src = 'https://picsum.photos/seed/media/600/340';
+                    }
+                };
+
+                this.dom.resThumb.src = thumbUrl || (ytMatch ? `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` : 'https://picsum.photos/seed/media/600/340');
                 this.dom.resDuration.textContent = this.formatTime(data.duration);
                 if (this.dom.resSource) this.dom.resSource.textContent = data.source || 'Source';
 
@@ -2462,28 +2483,27 @@
                 const formats = data.medias || data.formats || [];
 
                 formats.forEach((item) => {
-                    const isVideo = item.type === 'video' || item.mimeType?.includes('video');
+                    const isVideo = item.type === 'video' || item.mimeType?.includes('video') || item.ext === 'mp4';
                     const quality = item.quality || (item.height ? `${item.height}p` : 'HQ');
                     const size = item.size ? ` (${item.size})` : '';
-                    const safeUrl = (item.url || '').replace(/'/g, "&#39;");
+                    const safeUrl = (item.url || '').replace(/'/g, "\\'");
+                    const ext = (item.ext || (isVideo ? 'mp4' : 'mp3')).toLowerCase();
+                    const safeTitle = (data.title || 'download').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
                     const html = `
                 <div class="format-item">
                     <div class="format-info">
                         <h4>${quality}${size}</h4>
-                        <span>${item.ext?.toUpperCase() || 'MP4'}</span>
+                        <span>${ext.toUpperCase()}</span>
                     </div>
                     <div class="format-actions">
-                        <button class="dl-btn icon-only" title="Copy link" onclick="app.copyLink('${safeUrl}')">
-                            <i class="fa-regular fa-copy"></i>
-                        </button>
-                        <a href="${item.url}" target="_blank" class="dl-btn">
+                        <button class="dl-btn" onclick="app.triggerDownload('${safeUrl}', '${ext}', '${safeTitle}')">
                             Download
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
                                 <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
                             </svg>
-                        </a>
+                        </button>
                     </div>
                 </div>
             `;
@@ -2497,12 +2517,42 @@
                 this.dom.resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
 
-            async copyLink(url) {
+            async triggerDownload(url, ext, rawTitle) {
+                const cleanTitle = (rawTitle || 'download').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+                const fileName = `${cleanTitle}.${ext || 'mp4'}`;
+
+                this.showToast('Starting download...', 'success');
+
                 try {
-                    await navigator.clipboard.writeText(url);
-                    this.showToast('Link copied to clipboard', 'success');
-                } catch (err) {
-                    this.showToast('Could not copy link', 'error');
+                    const res = await fetch(url, { mode: 'cors' });
+                    if (!res.ok) throw new Error('Fetch status ' + res.status);
+                    const blob = await res.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = fileName;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                        a.remove();
+                    }, 1000);
+
+                    this.showToast('Download completed', 'success');
+                } catch (e) {
+                    console.warn('Blob fetch failed, falling back to direct anchor download trigger:', e);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => a.remove(), 1000);
                 }
             }
 
