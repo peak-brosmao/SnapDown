@@ -404,14 +404,11 @@ class App {
                 const cleanTitle = (rawTitle || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
                 const fileName = `${cleanTitle}.${ext || 'mp4'}`;
 
-                // ─── Download proxy (Vercel /api/proxy) ──────────────────────
-                // Same-origin API: fetches any URL server-side and returns binary
-                // with Content-Disposition: attachment — instant file download.
-                const SNAP_DL_PROXY = '/api/proxy';
-
-                // Save a blob as fileName
-                const saveBlobAs = (blob) => {
-                    if (!blob || blob.size === 0) throw new Error('Empty file received');
+                // Helper: fetch a URL as blob and save with filename
+                const blobDownload = async (fetchUrl, opts = {}) => {
+                    const res = await fetch(fetchUrl, opts);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const blob = await res.blob();
                     const blobUrl = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = blobUrl;
@@ -419,163 +416,87 @@ class App {
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 12000);
+                    setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 8000);
                 };
 
-                // Fetch URL → blob
-                const fetchBlob = async (fetchUrl, opts = {}) => {
-                    const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000), ...opts });
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const blob = await res.blob();
-                    if (!blob || blob.size === 0) throw new Error('Empty response');
-                    return blob;
-                };
+                const isYouTubeCDN = url.includes('googlevideo.com') || url.includes('youtube.com/videoplayback');
 
-                const inputUrl = (this.dom.input?.value || '').trim();
-                const isTikTok = url.includes('tiktok.com') || url.includes('tiktokcdn.com') || inputUrl.includes('tiktok.com');
-                const isYouTube = !isTikTok && (url.includes('googlevideo.com') || url.includes('youtube.com') || url.includes('youtu.be') || inputUrl.includes('youtube.com') || inputUrl.includes('youtu.be'));
-
-                // ═══ YOUTUBE PATH ═════════════════════════════════════════════
-                if (isYouTube) {
-                    this.showToast('⏳ Processing YouTube video download…', 'success');
-                    const ytUrl = inputUrl || url;
-                    const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
-                    const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
-
-                    // Extract YouTube video ID cleanly
-                    const ytIdMatch = ytUrl.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|shorts\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{8,12})/i);
-                    const ytVideoId = ytIdMatch ? ytIdMatch[1] : null;
-
-                    // 1️⃣ Primary: Our /api/youtube endpoint (server-side stream proxy)
+                if (isYouTubeCDN) {
+                    // YouTube CDN URLs are IP-locked — direct blob & proxy both fail.
+                    // Route through Cobalt (open-source YT processor) which handles this server-side.
+                    this.showToast('⏳ Processing YouTube download via Cobalt…', 'success');
                     try {
-                        const apiUrl = `/api/youtube?url=${encodeURIComponent(ytUrl)}&quality=${vQuality}&mode=${isAudio ? 'audio' : 'video'}`;
-                        const res = await fetch(apiUrl, { signal: AbortSignal.timeout(60000) });
-                        if (res.ok) {
-                            const blob = await res.blob();
-                            if (blob && blob.size > 0) {
-                                saveBlobAs(blob);
-                                this.showToast('✅ Download started!', 'success');
-                                return;
-                            }
-                        }
-                    } catch (ytErr) {
-                        console.warn('[/api/youtube] proxy streaming unavailable:', ytErr.message);
-                    }
+                        const ytUrl = this.dom.input.value.trim();
+                        const isAudio = ['mp3', 'm4a', 'ogg', 'opus'].includes(ext);
+                        const vQuality = (quality || '720').replace('p', '').replace('HQ', '720');
 
-                    // 2️⃣ Secondary: Cobalt API instances
-                    const cobaltInstances = ['https://api.cobalt.tools/'];
-                    for (const cobUrl of cobaltInstances) {
-                        try {
-                            const cobaltRes = await fetch(cobUrl, {
-                                method: 'POST',
-                                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    url: ytUrl,
-                                    videoQuality: vQuality,
-                                    downloadMode: isAudio ? 'audio' : 'auto'
-                                }),
-                                signal: AbortSignal.timeout(10000)
-                            });
-                            if (cobaltRes.ok) {
-                                const cobalt = await cobaltRes.json();
-                                const targetUrl = cobalt.url || cobalt.picker?.[0]?.url;
-                                if (targetUrl) {
-                                    const blob = await fetchBlob(targetUrl);
-                                    saveBlobAs(blob);
-                                    this.showToast('✅ Download started!', 'success');
-                                    return;
-                                }
-                            }
-                        } catch (cobaltErr) {
-                            console.warn(`[Cobalt] unavailable:`, cobaltErr.message);
-                        }
-                    }
+                        // Call Cobalt API — open-source server-side YouTube processor
+                        const cobaltRes = await fetch('https://api.cobalt.tools/', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                url: ytUrl,
+                                videoQuality: isAudio ? undefined : vQuality,
+                                isAudioOnly: isAudio,
+                                filenameStyle: 'pretty'
+                            })
+                        });
 
-                    // 3️⃣ Tertiary: Direct proxy fallback
-                    if (url && url.startsWith('http') && !url.includes('youtu.be') && !url.includes('youtube.com')) {
-                        try {
-                            const blob = await fetchBlob(`${SNAP_DL_PROXY}?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`);
-                            saveBlobAs(blob);
-                            this.showToast('✅ Download started!', 'success');
-                            return;
-                        } catch (pErr) {
-                            console.warn('[YouTube direct proxy] failed:', pErr.message);
-                        }
-                    }
+                        if (!cobaltRes.ok) throw new Error(`Cobalt HTTP ${cobaltRes.status}`);
+                        const cobalt = await cobaltRes.json();
+                        if (cobalt.status === 'error') throw new Error(cobalt.error?.code || 'Cobalt error');
 
-                    // 4️⃣ Final Guaranteed Fallback: Instant redirect to SSYouTube / SaveFrom downloader
-                    if (ytVideoId) {
-                        const partnerUrl = `https://ssyoutube.com/watch?v=${ytVideoId}`;
-                        this.showToast(`⚡ Redirecting to download page… <a href="${partnerUrl}" target="_blank" style="color:#fff;text-decoration:underline;font-weight:bold;margin-left:6px;">Click here if not redirected</a>`, 'success', 12000);
-                        setTimeout(() => { window.location.href = partnerUrl; }, 600);
+                        const dlUrl = cobalt.url;
+                        if (!dlUrl) throw new Error('No URL returned from Cobalt');
+
+                        // Cobalt returns a tunnel URL — fetch it as blob and save
+                        await blobDownload(dlUrl);
+                        this.showToast('✅ Download started!', 'success');
+                        return;
+                    } catch (cobaltErr) {
+                        console.warn('Cobalt failed:', cobaltErr.message);
+                        // Fallback: open in new tab so the user can watch/save manually
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                        this.showToast('⚠️ Opening in new tab — right-click video → Save As.', 'error');
                         return;
                     }
-
-                    this.showToast('❌ Unable to process YouTube URL. Please check the link.', 'error');
-                    return;
                 }
 
-                // ═══ ALL OTHER PLATFORMS (Facebook, Instagram, etc.) ══════════
-                this.showToast('⏳ Downloading…', 'success');
+                this.showToast('⏳ Preparing download…', 'success');
 
-                // 1️⃣ Vercel proxy (server-side, adds Content-Disposition: attachment)
+                // Step 1: Try direct blob fetch (works when server allows CORS)
                 try {
-                    const blob = await fetchBlob(`${SNAP_DL_PROXY}?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`);
-                    saveBlobAs(blob);
+                    await blobDownload(url);
                     this.showToast('✅ Download started!', 'success');
                     return;
-                } catch (e1) { console.warn('[proxy] failed:', e1.message); }
+                } catch (e1) {
+                    console.warn('Direct blob failed:', e1.message);
+                }
 
-                // 2️⃣ Direct fetch (works if CDN allows CORS)
+                // Step 2: Try via CORS proxy (for CDNs that block cross-origin but not proxies)
                 try {
-                    const blob = await fetchBlob(url);
-                    saveBlobAs(blob);
+                    const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+                    await blobDownload(proxyUrl);
                     this.showToast('✅ Download started!', 'success');
                     return;
-                } catch (e2) { console.warn('[direct] failed:', e2.message); }
+                } catch (e2) {
+                    console.warn('Proxy blob failed:', e2.message);
+                }
 
-                // 3️⃣ corsproxy.io
-                try {
-                    const blob = await fetchBlob(`https://corsproxy.io/?url=${encodeURIComponent(url)}`);
-                    saveBlobAs(blob);
-                    this.showToast('✅ Download started!', 'success');
-                    return;
-                } catch (e3) { console.warn('[corsproxy.io] failed:', e3.message); }
-
-                // 4️⃣ allorigins
-                try {
-                    const blob = await fetchBlob(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
-                    saveBlobAs(blob);
-                    this.showToast('✅ Download started!', 'success');
-                    return;
-                } catch (e4) { console.warn('[allorigins] failed:', e4.message); }
-
-                // 5️⃣ thingproxy
-                try {
-                    const blob = await fetchBlob(`https://thingproxy.freeboard.io/fetch/${url}`);
-                    saveBlobAs(blob);
-                    this.showToast('✅ Download started!', 'success');
-                    return;
-                } catch (e5) { console.warn('[thingproxy] failed:', e5.message); }
-
-                // 6️⃣ XMLHttpRequest (sometimes bypasses where fetch fails)
-                try {
-                    const blob = await new Promise((resolve, reject) => {
-                        const xhr = new XMLHttpRequest();
-                        xhr.open('GET', url, true);
-                        xhr.responseType = 'blob';
-                        xhr.timeout = 30000;
-                        xhr.onload = () => (xhr.status === 200 && xhr.response?.size > 0) ? resolve(xhr.response) : reject(new Error(`XHR ${xhr.status}`));
-                        xhr.onerror = () => reject(new Error('XHR error'));
-                        xhr.ontimeout = () => reject(new Error('XHR timeout'));
-                        xhr.send();
-                    });
-                    saveBlobAs(blob);
-                    this.showToast('✅ Download started!', 'success');
-                    return;
-                } catch (e6) { console.warn('[XHR] failed:', e6.message); }
-
-                this.showToast('❌ Download failed. Please try again.', 'error');
+                // Step 3: Last resort — open in new tab
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => a.remove(), 1000);
+                this.showToast('⚠️ Opened in new tab — right-click → "Save As" to save.', 'error');
             }
 
             switchTab(type) {
